@@ -333,28 +333,40 @@ let scans = [];    // [{ id, date, barcode, name, price, qty }]
 // ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
-async function syncFromSheets() {
-  try {
-    const resp = await fetch(SCRIPT_URL, { method: 'GET' });
-    const data = await resp.json();
-    if (data.status === 'ok' && data.data && data.data.length > 0) {
-      scans = data.data.map(s => ({
-        id: s.date + '_' + s.barcode,
-        date: s.date,
-        barcode: s.barcode,
-        name: s.name,
-        price: parseFloat(s.price) || 0,
-        qty: parseInt(s.qty) || 1
-      }));
-      saveScans();
-      renderStats();
-      renderToday();
-      renderHistory();
-      console.log('Синхронизировано:', scans.length, 'записей');
-    }
-  } catch(e) {
-    console.warn('Sync error:', e);
-  }
+function syncFromSheets() {
+  // Use JSONP to bypass CORS restriction
+  return new Promise((resolve) => {
+    const callbackName = 'sheetsCallback_' + Date.now();
+    const script = document.createElement('script');
+    
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      if (data && data.status === 'ok' && data.data && data.data.length > 0) {
+        scans = data.data.map(s => ({
+          id: s.date + '_' + s.barcode,
+          date: s.date,
+          barcode: s.barcode,
+          name: s.name,
+          price: parseFloat(s.price) || 0,
+          qty: parseInt(s.qty) || 1
+        }));
+        saveScans();
+        renderStats();
+        renderToday();
+        renderHistory();
+        console.log('Синхронизировано:', scans.length, 'записей');
+      }
+      resolve();
+    };
+    
+    script.src = SCRIPT_URL + '?callback=' + callbackName;
+    script.onerror = () => { resolve(); };
+    document.body.appendChild(script);
+    
+    // Timeout after 5 seconds
+    setTimeout(resolve, 5000);
+  });
 }
 
 function init() {
