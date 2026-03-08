@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Расходы — Дом</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0a0a0a; --sur:#141414; --sur2:#1a1a1a; --sur3:#202020;
+  --bord:#252525; --bord2:#2e2e2e;
+  --acc:#00e5a0; --acc2:#ff6b35; --acc3:#4d9fff;
+  --txt:#efefef; --txt2:#999; --txt3:#555;
+  --danger:#ff4455; --warn:#ffbb00;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:'JetBrains Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,229,160,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,160,.025) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;z-index:0
+}
+.wrap{max-width:860px;margin:0 auto;padding:20px 14px;position:relative;z-index:1}
+
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--bord)
+}
+.logo{font-family:'Unbounded',sans-serif;font-weight:900;font-size:16px;letter-spacing:-.5px}
+.logo span{color:var(--acc)}
+.hright{display:flex;align-items:center;gap:10px}
+.hdate{font-size:10px;color:var(--txt2);background:var(--sur);border:1px solid var(--bord);padding:5px 10px;border-radius:5px}
+
+/* ── DB BAR ── */
+.dbbar{
+  display:flex;align-items:center;gap:10px;
+  background:var(--sur);border:1px solid var(--bord);border-radius:8px;
+  padding:10px 14px;margin-bottom:16px;font-size:11px;
+  position:relative;overflow:hidden
+}
+.dbbar::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--txt3);transition:background .3s
+}
+.dbbar.loaded::before{background:var(--acc)}
+.dbbar.empty::before{background:var(--warn)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--txt3);flex-shrink:0;transition:all .3s}
+.dot.ok{background:var(--acc);box-shadow:0 0 8px rgba(0,229,160,.5)}
+.dot.warn{background:var(--warn);box-shadow:0 0 8px rgba(255,187,0,.4)}
+.dbinfo{flex:1;color:var(--txt2)}.dbinfo b{color:var(--txt)}
+.dbbtns{display:flex;gap:6px}
+
+/* ── BUTTONS ── */
+.btn{
+  background:none;border:1px solid var(--bord2);color:var(--txt2);
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  padding:5px 11px;border-radius:5px;cursor:pointer;
+  letter-spacing:.3px;white-space:nowrap;transition:all .15s
+}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#000;font-weight:700}
+.btn.primary:hover{background:#00ffb3;border-color:#00ffb3}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.danger:hover{background:var(--danger);color:#fff}
+
+/* ── TABS ── */
+.tabs{
+  display:flex;gap:2px;margin-bottom:18px;
+  background:var(--sur);border:1px solid var(--bord);border-radius:8px;padding:4px
+}
+.tab{
+  flex:1;padding:8px 6px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.5px;
+  color:var(--txt2);cursor:pointer;border-radius:5px;
+  transition:all .2s;border:none;background:none;text-transform:uppercase
+}
+.tab.active{background:var(--acc);color:#000;font-weight:700}
+.page{display:none}.page.active{display:block}
+
+/* ── SCAN BOX ── */
+.scanBox{
+  background:var(--sur);border:1.5px solid var(--bord);border-radius:12px;
+  padding:20px;margin-bottom:16px;position:relative;overflow:hidden
+}
+.scanBox::after{
+  content:'';position:absolute;top:0;left:-100%;right:-100%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--acc),transparent);
+  animation:scanline 2.5s ease-in-out infinite
+}
+@keyframes scanline{0%{left:-100%}50%{left:0%}100%{left:100%}}
+.slabel{font-size:9px;color:var(--acc);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.slabel::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--acc);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+#barcodeInput{
+  width:100%;background:var(--sur2);
+  border:1px solid var(--bord2);border-radius:7px;
+  padding:14px 16px;font-family:'JetBrains Mono',monospace;
+  font-size:20px;color:var(--txt);outline:none;
+  transition:border-color .2s, box-shadow .2s;letter-spacing:3px
+}
+#barcodeInput:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,229,160,.1)}
+.sstatus{font-size:11px;color:var(--txt2);margin-top:9px;min-height:18px;transition:all .2s}
+.sstatus.ok{color:var(--acc)}.sstatus.warn{color:var(--warn)}.sstatus.err{color:var(--danger)}
+@keyframes flashGreen{0%,100%{background:var(--sur)}40%{background:rgba(0,229,160,.1)}}
+.flash{animation:flashGreen .5s ease-out}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--sur);border:1px solid var(--bord);border-radius:8px;padding:12px 14px}
+.stat-label{font-size:9px;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
+.stat-val{font-family:'Unbounded',sans-serif;font-size:18px;font-weight:900}
+.stat-val.green{color:var(--acc)}.stat-val.orange{color:var(--acc2)}.stat-val.blue{color:var(--acc3)}
+.stat-sub{font-size:9px;color:var(--txt3);margin-top:3px}
+
+/* ── TABLE ── */
+.tblWrap{background:var(--sur);border:1px solid var(--bord);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.tblHead{display:grid;grid-template-columns:1fr 100px 52px 52px;padding:8px 14px;background:var(--sur2);border-bottom:1px solid var(--bord);font-size:9px;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase}
+.trow{display:grid;grid-template-columns:1fr 100px 52px 52px;padding:10px 14px;border-bottom:1px solid var(--bord);align-items:center;font-size:12px;transition:background .15s;cursor:default}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:var(--sur2)}
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.trow.new{animation:rowIn .3s ease-out}
+.trow-name{font-size:11px;line-height:1.4}
+.trow-bc{font-size:9px;color:var(--txt3);margin-top:2px;letter-spacing:1px}
+.trow-date{font-size:10px;color:var(--txt2)}
+.trow-qty{color:var(--acc2);font-weight:700;text-align:center}
+.trow-price{color:var(--acc);text-align:right}
+.trow-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;padding:0 2px;transition:color .15s;text-align:right}
+.trow-del:hover{color:var(--danger)}
+.empty{padding:30px;text-align:center;color:var(--txt3);font-size:11px}
+
+/* ── IMPORT BOX ── */
+.importBox{
+  border:2px dashed var(--bord2);border-radius:12px;
+  padding:36px 20px;text-align:center;cursor:pointer;
+  transition:all .2s;margin-bottom:16px;position:relative
+}
+.importBox:hover,.importBox.dragover{border-color:var(--acc);background:rgba(0,229,160,.04)}
+.importBox input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.importIcon{font-size:36px;margin-bottom:10px}
+.importTitle{font-family:'Unbounded',sans-serif;font-size:13px;margin-bottom:6px}
+.importSub{font-size:10px;color:var(--txt2)}
+.importStatus{margin-top:10px;font-size:11px;min-height:16px}
+.importStatus.ok{color:var(--acc)}.importStatus.err{color:var(--danger)}
+
+/* ── PRODUCT LIST ── */
+.prodRow{display:grid;grid-template-columns:1fr 120px 36px;padding:9px 14px;border-bottom:1px solid var(--bord);align-items:center;font-size:11px}
+.prodRow:last-child{border-bottom:none}
+.prodRow:hover{background:var(--sur2)}
+.prodName{font-size:11px;line-height:1.4}
+.prodBc{font-size:9px;color:var(--txt3);margin-top:1px;letter-spacing:1px}
+.prodPrice{color:var(--acc);text-align:right}
+.prodDel{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:13px;transition:color .15s;text-align:center}
+.prodDel:hover{color:var(--danger)}
+
+/* ── MONTH GROUPS ── */
+.monthGroup{margin-bottom:16px}
+.monthTitle{font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;padding:6px 14px;background:var(--sur2);border:1px solid var(--bord);border-radius:6px 6px 0 0}
+.monthTotal{font-size:10px;color:var(--acc);float:right}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal{background:var(--sur);border:1px solid var(--bord2);border-radius:14px;padding:24px;width:90%;max-width:420px}
+.modal h3{font-family:'Unbounded',sans-serif;font-size:14px;margin-bottom:16px}
+.modal p{font-size:11px;color:var(--txt2);line-height:1.7;margin-bottom:16px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* ── MANUAL ADD ── */
+.addForm{background:var(--sur);border:1px solid var(--bord);border-radius:10px;padding:16px;margin-bottom:16px}
+.addForm h4{font-size:10px;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.finput{background:var(--sur2);border:1px solid var(--bord2);border-radius:6px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt);outline:none;width:100%;transition:border-color .15s}
+.finput:focus{border-color:var(--acc)}
+.finput::placeholder{color:var(--txt3)}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:2px}
+
+/* ── RESPONSIVE ── */
+@media(max-width:500px){
+  .stats{grid-template-columns:1fr 1fr}
+  .tblHead,.trow{grid-template-columns:1fr 80px 44px 44px}
+  .stat:last-child{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">РАС<span>ХОДЫ</span>.ДОМ</div>
+    <div class="hright">
+      <div class="hdate" id="hdate"></div>
+    </div>
+  </header>
+
+  <!-- DB BAR -->
+  <div class="dbbar" id="dbbar">
+    <div class="dot" id="dbdot"></div>
+    <div class="dbinfo" id="dbinfo">База товаров не загружена</div>
+    <div class="dbbtns">
+      <button class="btn" onclick="document.getElementById('xlsxInput').click()">↑ Загрузить XLSX</button>
+      <button class="btn danger" id="clearDbBtn" onclick="clearDb()" style="display:none">✕ Очистить</button>
+    </div>
+    <input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="loadXlsx(this)">
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('scan',this)">⊙ СКАНЕР</button>
+    <button class="tab" onclick="showTab('history',this)">↓ ИСТОРИЯ</button>
+    <button class="tab" onclick="showTab('products',this)">▦ ТОВАРЫ</button>
+  </div>
+
+  <!-- ═══ SCAN PAGE ═══ -->
+  <div class="page active" id="page-scan">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Сегодня</div>
+        <div class="stat-val green" id="todaySum">0 ₸</div>
+        <div class="stat-sub" id="todayCount">0 позиций</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Месяц</div>
+        <div class="stat-val orange" id="monthSum">0 ₸</div>
+        <div class="stat-sub" id="monthCount">0 позиций</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Всего</div>
+        <div class="stat-val blue" id="totalSum">0 ₸</div>
+        <div class="stat-sub" id="totalCount">0 позиций</div>
+      </div>
+    </div>
+
+    <div class="scanBox" id="scanBox">
+      <div class="slabel">Сканирование</div>
+      <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off" autofocus>
+      <div class="sstatus" id="sstatus">Ожидание сканирования...</div>
+    </div>
+
+    <!-- Today's scans -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase">Сегодня</div>
+      <button class="btn" onclick="exportCSV()">↓ Экспорт CSV</button>
+    </div>
+    <div class="tblWrap">
+      <div class="tblHead"><div>Товар</div><div>Дата</div><div style="text-align:center">Кол-во</div><div style="text-align:right">Сумма</div></div>
+      <div id="todayList"><div class="empty">Нет записей за сегодня</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ HISTORY PAGE ═══ -->
+  <div class="page" id="page-history">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase">Все записи</div>
+      <button class="btn danger" onclick="confirmClear()">✕ Очистить всё</button>
+    </div>
+    <div id="historyList"><div class="empty">Нет записей</div></div>
+  </div>
+
+  <!-- ═══ PRODUCTS PAGE ═══ -->
+  <div class="page" id="page-products">
+    <!-- Import box -->
+    <div class="importBox" id="importBox">
+      <input type="file" accept=".xlsx,.xls" onchange="loadXlsx(this)" 
+        ondragover="this.parentElement.classList.add('dragover')"
+        ondragleave="this.parentElement.classList.remove('dragover')"
+        ondrop="this.parentElement.classList.remove('dragover')">
+      <div class="importIcon">📦</div>
+      <div class="importTitle">Загрузить базу UMAG</div>
+      <div class="importSub">Перетащи .xlsx файл сюда или кликни для выбора</div>
+      <div class="importStatus" id="importStatus"></div>
+    </div>
+
+    <!-- Manual add -->
+    <div class="addForm">
+      <h4>Добавить вручную</h4>
+      <div class="frow">
+        <input class="finput" id="manBc" placeholder="Штрихкод">
+        <input class="finput" id="manPrice" placeholder="Цена ₸" type="number">
+      </div>
+      <input class="finput" id="manName" placeholder="Название товара" style="margin-bottom:8px">
+      <button class="btn primary" onclick="addManual()" style="width:100%">+ Добавить</button>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase">База товаров: <span id="prodCount" style="color:var(--acc)">0</span></div>
+      <input class="finput" id="prodSearch" placeholder="Поиск..." style="width:140px;padding:5px 10px;font-size:11px" oninput="renderProducts()">
+    </div>
+    <div class="tblWrap">
+      <div class="prodRow" style="background:var(--sur2);font-size:9px;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase">
+        <div>Товар</div><div style="text-align:right">Цена</div><div></div>
+      </div>
+      <div id="prodList"><div class="empty">База пуста</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3>⚠ Очистить историю?</h3>
+    <p>Все записи о сканированиях будут удалены. Это действие нельзя отменить.</p>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal()">Отмена</button>
+      <button class="btn danger" onclick="clearHistory()">Удалить всё</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUirGLPqXNdjbqLypdbXEnCr2d00vzDUJ1qhr5dCIVoOsEhR14XP089vKPk_N-b1Ec/exec';
+
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let products = {}; // { barcode: { name, price } }
+let scans = [];    // [{ id, date, barcode, name, price, qty }]
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+async function syncFromSheets() {
+  try {
+    const resp = await fetch(SCRIPT_URL, { method: 'GET' });
+    const data = await resp.json();
+    if (data.status === 'ok' && data.data && data.data.length > 0) {
+      scans = data.data.map(s => ({
+        id: s.date + '_' + s.barcode,
+        date: s.date,
+        barcode: s.barcode,
+        name: s.name,
+        price: parseFloat(s.price) || 0,
+        qty: parseInt(s.qty) || 1
+      }));
+      saveScans();
+      renderStats();
+      renderToday();
+      renderHistory();
+      console.log('Синхронизировано:', scans.length, 'записей');
+    }
+  } catch(e) {
+    console.warn('Sync error:', e);
+  }
+}
+
+function init() {
+  // Load saved data from localStorage
+  const savedProducts = localStorage.getItem('shop_products');
+  const savedScans = localStorage.getItem('shop_scans');
+  if (savedProducts) products = JSON.parse(savedProducts);
+  if (savedScans) scans = JSON.parse(savedScans);
+  
+  // Sync history from Google Sheets on startup
+  syncFromSheets();
+
+  // Date header
+  document.getElementById('hdate').textContent = new Date().toLocaleDateString('ru-RU', {day:'numeric',month:'long',year:'numeric'});
+
+  // Barcode input handler
+  const inp = document.getElementById('barcodeInput');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') processBarcode(inp.value.trim()) });
+  inp.addEventListener('input', () => {
+    // Auto-submit if looks like full barcode (8-13 digits)
+    const v = inp.value.trim().replace(/\D/g,'');
+    if (v.length >= 8) {
+      clearTimeout(inp._timer);
+      inp._timer = setTimeout(() => processBarcode(inp.value.trim()), 150);
+    }
+  });
+
+  updateDbBar();
+  renderStats();
+  renderToday();
+  renderHistory();
+  renderProducts();
+}
+
+// ══════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════
+function showTab(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'scan') setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+}
+
+// ══════════════════════════════════════
+//  XLSX IMPORT
+// ══════════════════════════════════════
+function loadXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('importStatus');
+  if (status) { status.textContent = '⏳ Читаю файл...'; status.className = 'importStatus'; }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      let imported = 0, skipped = 0;
+      const newProducts = { ...products };
+
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+
+      // Use fixed absolute column indices: A=0, D=3, H=7
+      const colAbsName     = range.s.c + 0;
+      const colAbsBarcode  = range.s.c + 3;
+      const colAbsPrice    = range.s.c + 7;
+
+      for (let r = range.s.r + 1; r <= range.e.r; r++) {
+        // Access cells by ABSOLUTE column index — avoids shift from empty cells
+        const nameCell = ws[XLSX.utils.encode_cell({r, c: colAbsName})];
+        const bcCell   = ws[XLSX.utils.encode_cell({r, c: colAbsBarcode})];
+        const prCell   = ws[XLSX.utils.encode_cell({r, c: colAbsPrice})];
+
+        const name = nameCell ? String(nameCell.v || '').trim() : '';
+        if (!name || name.length < 2) { skipped++; continue; }
+
+        let barcode = '';
+        if (bcCell && bcCell.v !== undefined && bcCell.v !== '') {
+          if (typeof bcCell.v === 'number') {
+            barcode = String(Math.round(bcCell.v));
+          } else {
+            barcode = String(bcCell.v).replace(/[^\d]/g, '');
+          }
+        }
+
+        if (!barcode || barcode.length < 4) { skipped++; continue; }
+
+        const price = prCell && typeof prCell.v === 'number' ? prCell.v :
+                      prCell && prCell.v ? parseFloat(String(prCell.v).replace(/[^\d.,]/g,'').replace(',','.')) || 0 : 0;
+
+        newProducts[barcode] = { name, price };
+        imported++;
+      }
+
+            products = newProducts;
+      saveProducts();
+      updateDbBar();
+      renderProducts();
+
+      const msg = `✓ Загружено ${imported} товаров` + (skipped ? ` (пропущено ${skipped})` : '');
+      if (status) { status.textContent = msg; status.className = 'importStatus ok'; }
+      setStatus(msg, 'ok');
+
+    } catch(err) {
+      const msg = '✕ Ошибка чтения файла: ' + err.message;
+      if (status) { status.textContent = msg; status.className = 'importStatus err'; }
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+// ══════════════════════════════════════
+//  BARCODE PROCESSING
+// ══════════════════════════════════════
+function processBarcode(raw) {
+  const inp = document.getElementById('barcodeInput');
+  inp.value = '';
+  inp.focus();
+  if (!raw) return;
+
+  const barcode = raw.replace(/[^\d]/g,'');
+  if (barcode.length < 4) { setStatus('Слишком короткий штрихкод', 'warn'); return; }
+
+  const product = products[barcode];
+  const today = todayStr();
+  const now = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+
+  // Find if already scanned today
+  const existing = scans.find(s => s.barcode === barcode && s.date === today);
+
+  if (existing) {
+    existing.qty++;
+    flashScan(true);
+    setStatus(`+1 → ${existing.name || barcode} × ${existing.qty}`, 'ok');
+  } else {
+    const scan = {
+      id: Date.now(),
+      date: today,
+      time: now,
+      barcode,
+      name: product ? product.name : `[${barcode}]`,
+      price: product ? product.price : 0,
+      qty: 1,
+      unknown: !product
+    };
+    scans.unshift(scan);
+    flashScan(false);
+    if (product) {
+      setStatus(`✓ ${product.name} — ${fmtPrice(product.price)}`, 'ok');
+    } else {
+      setStatus(`⚠ Товар не найден: ${barcode}`, 'warn');
+    }
+  }
+
+  saveScans();
+  renderStats();
+  renderToday();
+
+  // Send to Google Sheets (fire and forget)
+  const scanToSend = scans.find(s => s.barcode === barcode && s.date === today);
+  if (scanToSend) sendToSheets(scanToSend);
+}
+
+function flashScan(isRepeat) {
+  const box = document.getElementById('scanBox');
+  box.classList.remove('flash');
+  void box.offsetWidth;
+  box.classList.add('flash');
+}
+
+// ══════════════════════════════════════
+//  GOOGLE SHEETS SYNC
+// ══════════════════════════════════════
+async function sendToSheets(scan) {
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: scan.date,
+        barcode: scan.barcode,
+        name: scan.name,
+        price: scan.price,
+        qty: scan.qty
+      })
+    });
+  } catch(e) {
+    console.warn('Sheets sync error:', e);
+  }
+}
+
+// ══════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════
+function renderStats() {
+  const today = todayStr();
+  const month = today.slice(0, 7);
+
+  const todayScans = scans.filter(s => s.date === today);
+  const monthScans = scans.filter(s => s.date.startsWith(month));
+
+  const sum = arr => arr.reduce((a, s) => a + s.price * s.qty, 0);
+  const cnt = arr => arr.reduce((a, s) => a + s.qty, 0);
+
+  document.getElementById('todaySum').textContent = fmtPrice(sum(todayScans));
+  document.getElementById('todayCount').textContent = cnt(todayScans) + ' позиций';
+  document.getElementById('monthSum').textContent = fmtPrice(sum(monthScans));
+  document.getElementById('monthCount').textContent = cnt(monthScans) + ' позиций';
+  document.getElementById('totalSum').textContent = fmtPrice(sum(scans));
+  document.getElementById('totalCount').textContent = cnt(scans) + ' позиций';
+}
+
+function renderToday() {
+  const today = todayStr();
+  const list = document.getElementById('todayList');
+  const todayScans = scans.filter(s => s.date === today);
+
+  if (!todayScans.length) {
+    list.innerHTML = '<div class="empty">Нет записей за сегодня</div>';
+    return;
+  }
+
+  list.innerHTML = todayScans.map((s, i) => `
+    <div class="trow ${i===0?'new':''}">
+      <div><div class="trow-name">${s.name}</div><div class="trow-bc">${s.barcode}</div></div>
+      <div class="trow-date">${s.date}</div>
+      <div class="trow-qty">${s.qty}</div>
+      <div class="trow-price">${fmtPrice(s.price * s.qty)}</div>
+    </div>
+  `).join('');
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!scans.length) { list.innerHTML = '<div class="empty">Нет записей</div>'; return; }
+
+  // Group by month
+  const groups = {};
+  scans.forEach(s => {
+    const m = s.date.slice(0, 7);
+    if (!groups[m]) groups[m] = [];
+    groups[m].push(s);
+  });
+
+  list.innerHTML = Object.keys(groups).sort().reverse().map(month => {
+    const g = groups[month];
+    const total = g.reduce((a, s) => a + s.price * s.qty, 0);
+    const [y, m] = month.split('-');
+    const mName = new Date(y, m-1).toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+
+    return `
+      <div class="monthGroup">
+        <div class="monthTitle">${mName} <span class="monthTotal">${fmtPrice(total)}</span></div>
+        <div class="tblWrap" style="border-radius:0 0 10px 10px;border-top:none">
+          ${g.map(s => `
+            <div class="trow">
+              <div><div class="trow-name">${s.name}</div><div class="trow-bc">${s.barcode}</div></div>
+              <div class="trow-date">${s.date}</div>
+              <div class="trow-qty">${s.qty}</div>
+              <div class="trow-price">${fmtPrice(s.price * s.qty)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderProducts() {
+  const query = (document.getElementById('prodSearch')?.value || '').toLowerCase();
+  const keys = Object.keys(products).filter(bc => {
+    if (!query) return true;
+    const p = products[bc];
+    return p.name.toLowerCase().includes(query) || bc.includes(query);
+  });
+
+  document.getElementById('prodCount').textContent = Object.keys(products).length;
+
+  const list = document.getElementById('prodList');
+  if (!keys.length) {
+    list.innerHTML = '<div class="empty">' + (query ? 'Не найдено' : 'База пуста') + '</div>';
+    return;
+  }
+
+  list.innerHTML = keys.slice(0, 200).map(bc => {
+    const p = products[bc];
+    return `
+      <div class="prodRow">
+        <div><div class="prodName">${p.name}</div><div class="prodBc">${bc}</div></div>
+        <div class="prodPrice">${fmtPrice(p.price)}</div>
+        <button class="prodDel" onclick="deleteProduct('${bc}')">✕</button>
+      </div>
+    `;
+  }).join('') + (keys.length > 200 ? `<div class="empty">...ещё ${keys.length-200} товаров</div>` : '');
+}
+
+function updateDbBar() {
+  const count = Object.keys(products).length;
+  const dot = document.getElementById('dbdot');
+  const info = document.getElementById('dbinfo');
+  const bar = document.getElementById('dbbar');
+  const clearBtn = document.getElementById('clearDbBtn');
+
+  if (count > 0) {
+    dot.className = 'dot ok';
+    info.innerHTML = `База загружена: <b>${count} товаров</b>`;
+    bar.className = 'dbbar loaded';
+    clearBtn.style.display = 'block';
+  } else {
+    dot.className = 'dot warn';
+    info.innerHTML = 'База товаров <b>не загружена</b> — загрузи XLSX файл из UMAG';
+    bar.className = 'dbbar empty';
+    clearBtn.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════════
+function addManual() {
+  const bc = document.getElementById('manBc').value.trim().replace(/[^\d]/g,'');
+  const name = document.getElementById('manName').value.trim();
+  const price = parseFloat(document.getElementById('manPrice').value) || 0;
+  if (!bc || !name) return;
+  products[bc] = { name, price };
+  saveProducts();
+  updateDbBar();
+  renderProducts();
+  document.getElementById('manBc').value = '';
+  document.getElementById('manName').value = '';
+  document.getElementById('manPrice').value = '';
+}
+
+function deleteProduct(bc) {
+  delete products[bc];
+  saveProducts();
+  updateDbBar();
+  renderProducts();
+}
+
+function clearDb() {
+  if (!confirm('Очистить базу товаров?')) return;
+  products = {};
+  saveProducts();
+  updateDbBar();
+  renderProducts();
+}
+
+function confirmClear() {
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('show');
+}
+
+function clearHistory() {
+  scans = [];
+  saveScans();
+  renderStats();
+  renderToday();
+  renderHistory();
+  closeModal();
+}
+
+function exportCSV() {
+  if (!scans.length) return;
+  const rows = [['Дата','Штрихкод','Название','Цена','Кол-во','Сумма']];
+  scans.forEach(s => rows.push([s.date, s.barcode, s.name, s.price, s.qty, s.price * s.qty]));
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = `расходы_${todayStr()}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════
+function setStatus(msg, type) {
+  const el = document.getElementById('sstatus');
+  el.textContent = msg;
+  el.className = 'sstatus ' + (type || '');
+}
+
+function fmtPrice(n) {
+  return Math.round(n).toLocaleString('ru-RU') + ' ₸';
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function saveProducts() { localStorage.setItem('shop_products', JSON.stringify(products)); }
+function saveScans() { localStorage.setItem('shop_scans', JSON.stringify(scans)); }
+
+// Close modal on backdrop click
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// Keep focus on barcode input when on scan tab
+document.addEventListener('click', function(e) {
+  const scanPage = document.getElementById('page-scan');
+  if (scanPage.classList.contains('active') && !e.target.closest('button') && !e.target.closest('input')) {
+    document.getElementById('barcodeInput').focus();
+  }
+});
+function debugBarcode() {
+  const bc = prompt("Введи штрихкод для проверки:");
+  if (!bc) return;
+  const clean = bc.replace(/[^\d]/g,"");
+  const found = products[clean];
+  const keys = Object.keys(products).slice(0,5);
+  alert("Ищем: " + clean + "\nНайден: " + (found ? found.name + " - " + found.price : "НЕТ") + "\n\nПервые 5 ключей в базе:\n" + keys.join("\n"));
+}
+
+init();
+</script>
+</body>
+</html>
