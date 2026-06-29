@@ -112,7 +112,7 @@ header{
 .flash{animation:flashGreen .5s ease-out}
 
 /* ── STATS ROW ── */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
 .stat{background:var(--sur);border:1px solid var(--bord);border-radius:8px;padding:12px 14px}
 .stat-label{font-size:9px;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
 .stat-val{font-family:'Unbounded',sans-serif;font-size:18px;font-weight:900}
@@ -226,9 +226,7 @@ header{
 
 /* ── RESPONSIVE ── */
 @media(max-width:500px){
-  .stats{grid-template-columns:1fr 1fr}
   .tblHead,.trow{grid-template-columns:1fr 80px 44px 44px}
-  .stat:last-child{grid-column:1/-1}
 }
 </style>
 </head>
@@ -284,14 +282,9 @@ header{
         <div class="stat-sub" id="todayCount">0 позиций</div>
       </div>
       <div class="stat">
-        <div class="stat-label">Месяц</div>
+        <div class="stat-label" id="monthLabel">Месяц</div>
         <div class="stat-val orange" id="monthSum">0 ₸</div>
         <div class="stat-sub" id="monthCount">0 позиций</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Всего</div>
-        <div class="stat-val blue" id="totalSum">0 ₸</div>
-        <div class="stat-sub" id="totalCount">0 позиций</div>
       </div>
     </div>
 
@@ -691,12 +684,13 @@ function renderStats() {
   const sum = arr => arr.reduce((a, s) => a + s.price * s.qty, 0);
   const cnt = arr => arr.reduce((a, s) => a + s.qty, 0);
 
+  const mName = MONTHS_RU[parseInt(month.split('-')[1]) - 1];
+  document.getElementById('monthLabel').textContent = mName;
+
   document.getElementById('todaySum').textContent = fmtPrice(sum(todayScans));
   document.getElementById('todayCount').textContent = cnt(todayScans) + ' позиций';
   document.getElementById('monthSum').textContent = fmtPrice(sum(monthScans));
   document.getElementById('monthCount').textContent = cnt(monthScans) + ' позиций';
-  document.getElementById('totalSum').textContent = fmtPrice(sum(scans));
-  document.getElementById('totalCount').textContent = cnt(scans) + ' позиций';
 }
 
 function renderToday() {
