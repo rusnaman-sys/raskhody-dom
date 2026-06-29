@@ -35,6 +35,8 @@ header{
 .logo span{color:var(--acc)}
 .hright{display:flex;align-items:center;gap:10px}
 .hdate{font-size:10px;color:var(--txt2);background:var(--sur);border:1px solid var(--bord);padding:5px 10px;border-radius:5px}
+.lockbtn{font-size:10px;color:var(--txt2);background:var(--sur);border:1px solid var(--bord);padding:5px 10px;border-radius:5px;cursor:pointer;transition:all .15s}
+.lockbtn:hover{border-color:var(--danger);color:var(--danger)}
 
 /* ── DB BAR ── */
 .dbbar{
@@ -130,8 +132,6 @@ header{
 .trow-date{font-size:10px;color:var(--txt2)}
 .trow-qty{color:var(--acc2);font-weight:700;text-align:center}
 .trow-price{color:var(--acc);text-align:right}
-.trow-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;padding:0 2px;transition:color .15s;text-align:right}
-.trow-del:hover{color:var(--danger)}
 .empty{padding:30px;text-align:center;color:var(--txt3);font-size:11px}
 
 /* ── IMPORT BOX ── */
@@ -158,10 +158,27 @@ header{
 .prodDel{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:13px;transition:color .15s;text-align:center}
 .prodDel:hover{color:var(--danger)}
 
-/* ── MONTH GROUPS ── */
-.monthGroup{margin-bottom:16px}
-.monthTitle{font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;padding:6px 14px;background:var(--sur2);border:1px solid var(--bord);border-radius:6px 6px 0 0}
-.monthTotal{font-size:10px;color:var(--acc);float:right}
+/* ── MONTH CARDS ── */
+.monthCard{background:var(--sur);border:1px solid var(--bord);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.monthCard.open{border-color:var(--acc)}
+.monthHead{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;transition:background .15s}
+.monthHead:hover{background:var(--sur2)}
+.monthName{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700}
+.monthMeta{display:flex;align-items:center;gap:14px}
+.monthSum{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:900;color:var(--acc)}
+.monthCnt{font-size:9px;color:var(--txt3);letter-spacing:1px;text-transform:uppercase}
+.monthArrow{color:var(--txt3);font-size:11px;transition:transform .2s}
+.monthCard.open .monthArrow{transform:rotate(90deg);color:var(--acc)}
+.monthBody{display:none;border-top:1px solid var(--bord)}
+.monthCard.open .monthBody{display:block}
+
+/* ── MANUAL ADD ── */
+.addForm{background:var(--sur);border:1px solid var(--bord);border-radius:10px;padding:16px;margin-bottom:16px}
+.addForm h4{font-size:10px;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.finput{background:var(--sur2);border:1px solid var(--bord2);border-radius:6px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt);outline:none;width:100%;transition:border-color .15s}
+.finput:focus{border-color:var(--acc)}
+.finput::placeholder{color:var(--txt3)}
 
 /* ── MODAL ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -171,13 +188,36 @@ header{
 .modal p{font-size:11px;color:var(--txt2);line-height:1.7;margin-bottom:16px}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
 
-/* ── MANUAL ADD ── */
-.addForm{background:var(--sur);border:1px solid var(--bord);border-radius:10px;padding:16px;margin-bottom:16px}
-.addForm h4{font-size:10px;color:var(--txt2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.finput{background:var(--sur2);border:1px solid var(--bord2);border-radius:6px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt);outline:none;width:100%;transition:border-color .15s}
-.finput:focus{border-color:var(--acc)}
-.finput::placeholder{color:var(--txt3)}
+/* ── QTY MODAL ── */
+.qtyProd{background:var(--sur2);border:1px solid var(--bord);border-radius:8px;padding:12px 14px;margin-bottom:16px}
+.qtyName{font-size:13px;line-height:1.4;margin-bottom:4px}
+.qtyMeta{font-size:10px;color:var(--txt3);letter-spacing:1px}
+.qtyMeta .price{color:var(--acc)}
+.qtyLabel{font-size:9px;color:var(--txt2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+#qtyInput{width:100%;background:var(--sur2);border:1.5px solid var(--acc);border-radius:8px;padding:16px;font-family:'Unbounded',sans-serif;font-size:32px;font-weight:900;color:var(--txt);outline:none;text-align:center}
+
+/* ── PIN LOCK ── */
+.lock-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+.lock-overlay.hidden{display:none}
+.lock-overlay::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(0,229,160,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,160,.025) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none
+}
+.lock-box{position:relative;z-index:1;text-align:center;width:100%;max-width:320px}
+.lock-icon{font-size:48px;margin-bottom:14px}
+.lock-title{font-family:'Unbounded',sans-serif;font-size:18px;font-weight:900;margin-bottom:8px}
+.lock-title span{color:var(--acc)}
+.lock-sub{font-size:11px;color:var(--txt2);margin-bottom:24px}
+#pinInput{width:100%;background:var(--sur);border:1.5px solid var(--bord2);border-radius:10px;padding:16px;font-family:'Unbounded',sans-serif;font-size:28px;font-weight:900;color:var(--txt);outline:none;text-align:center;letter-spacing:12px;transition:border-color .2s}
+#pinInput:focus{border-color:var(--acc)}
+#pinInput.err{border-color:var(--danger);animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.lock-status{font-size:11px;min-height:18px;margin-top:12px;color:var(--txt3)}
+.lock-status.err{color:var(--danger)}
+.lock-status.ok{color:var(--acc)}
 
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar{width:4px}
@@ -193,6 +233,19 @@ header{
 </style>
 </head>
 <body>
+
+<!-- ═══ PIN LOCK SCREEN ═══ -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-box">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">РАС<span>ХОДЫ</span>.ДОМ</div>
+    <div class="lock-sub">Введи код для входа</div>
+    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="12">
+    <div class="lock-status" id="lockStatus">&nbsp;</div>
+    <button class="btn primary" onclick="tryUnlock()" style="width:100%;padding:12px;margin-top:8px">ВОЙТИ</button>
+  </div>
+</div>
+
 <div class="wrap">
 
   <!-- HEADER -->
@@ -200,6 +253,7 @@ header{
     <div class="logo">РАС<span>ХОДЫ</span>.ДОМ</div>
     <div class="hright">
       <div class="hdate" id="hdate"></div>
+      <div class="lockbtn" onclick="lockApp()">🔒 Выйти</div>
     </div>
   </header>
 
@@ -217,7 +271,7 @@ header{
   <!-- TABS -->
   <div class="tabs">
     <button class="tab active" onclick="showTab('scan',this)">⊙ СКАНЕР</button>
-    <button class="tab" onclick="showTab('history',this)">↓ ИСТОРИЯ</button>
+    <button class="tab" onclick="showTab('months',this)">▤ МЕСЯЦЫ</button>
     <button class="tab" onclick="showTab('products',this)">▦ ТОВАРЫ</button>
   </div>
 
@@ -243,7 +297,7 @@ header{
 
     <div class="scanBox" id="scanBox">
       <div class="slabel">Сканирование</div>
-      <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off" autofocus>
+      <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off">
       <div class="sstatus" id="sstatus">Ожидание сканирования...</div>
     </div>
 
@@ -258,20 +312,20 @@ header{
     </div>
   </div>
 
-  <!-- ═══ HISTORY PAGE ═══ -->
-  <div class="page" id="page-history">
+  <!-- ═══ MONTHS PAGE ═══ -->
+  <div class="page" id="page-months">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div style="font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase">Все записи</div>
+      <div style="font-size:9px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase">Все месяцы</div>
       <button class="btn danger" onclick="confirmClear()">✕ Очистить всё</button>
     </div>
-    <div id="historyList"><div class="empty">Нет записей</div></div>
+    <div id="monthsList"><div class="empty">Нет записей</div></div>
   </div>
 
   <!-- ═══ PRODUCTS PAGE ═══ -->
   <div class="page" id="page-products">
     <!-- Import box -->
     <div class="importBox" id="importBox">
-      <input type="file" accept=".xlsx,.xls" onchange="loadXlsx(this)" 
+      <input type="file" accept=".xlsx,.xls" onchange="loadXlsx(this)"
         ondragover="this.parentElement.classList.add('dragover')"
         ondragleave="this.parentElement.classList.remove('dragover')"
         ondrop="this.parentElement.classList.remove('dragover')">
@@ -306,11 +360,28 @@ header{
 
 </div>
 
-<!-- CONFIRM MODAL -->
+<!-- ═══ QUANTITY MODAL ═══ -->
+<div class="modal-overlay" id="qtyModal">
+  <div class="modal">
+    <h3>Сколько берёшь?</h3>
+    <div class="qtyProd">
+      <div class="qtyName" id="qtyName">—</div>
+      <div class="qtyMeta"><span id="qtyBc"></span> · <span class="price" id="qtyPrice"></span></div>
+    </div>
+    <div class="qtyLabel">Количество</div>
+    <input type="number" id="qtyInput" inputmode="numeric" min="1" value="1">
+    <div class="modal-btns">
+      <button class="btn" onclick="cancelQty()">Отмена</button>
+      <button class="btn primary" onclick="confirmQty()">✓ Записать</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM CLEAR MODAL ═══ -->
 <div class="modal-overlay" id="confirmModal">
   <div class="modal">
     <h3>⚠ Очистить историю?</h3>
-    <p>Все записи о сканированиях будут удалены. Это действие нельзя отменить.</p>
+    <p>Все записи на этом телефоне будут удалены. Данные в Google-таблице останутся. Это действие нельзя отменить.</p>
     <div class="modal-btns">
       <button class="btn" onclick="closeModal()">Отмена</button>
       <button class="btn danger" onclick="clearHistory()">Удалить всё</button>
@@ -327,78 +398,103 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUirGLPqXNdjbqLypdb
 // ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
-let products = {}; // { barcode: { name, price } }
-let scans = [];    // [{ id, date, barcode, name, price, qty }]
+let products = {};      // { barcode: { name, price } }
+let scans = [];         // [{ id, date, barcode, name, price, qty }]
+let APP_PIN = null;     // пароль текущей сессии (в памяти, не сохраняется)
+let pendingBarcode = null; // штрихкод, ожидающий ввода количества
+
+// ══════════════════════════════════════
+//  PIN LOCK
+// ══════════════════════════════════════
+function tryUnlock() {
+  const pin = document.getElementById('pinInput').value.trim();
+  if (!pin) return;
+  const status = document.getElementById('lockStatus');
+  status.textContent = '⏳ Проверяю...';
+  status.className = 'lock-status';
+
+  const cbName = 'pinCheck_' + Date.now();
+  const script = document.createElement('script');
+  let done = false;
+
+  window[cbName] = function(data) {
+    done = true;
+    delete window[cbName];
+    if (script.parentNode) document.body.removeChild(script);
+    if (data && data.status === 'ok') {
+      APP_PIN = pin;
+      status.textContent = '✓ Доступ разрешён';
+      status.className = 'lock-status ok';
+      setTimeout(unlockApp, 300);
+    } else {
+      const inp = document.getElementById('pinInput');
+      inp.classList.add('err');
+      inp.value = '';
+      setTimeout(() => inp.classList.remove('err'), 400);
+      status.textContent = '✕ Неверный код';
+      status.className = 'lock-status err';
+    }
+  };
+
+  script.src = SCRIPT_URL + '?action=checkpin&pin=' + encodeURIComponent(pin) + '&callback=' + cbName;
+  script.onerror = () => {
+    if (!done) { status.textContent = '✕ Нет связи с Google'; status.className = 'lock-status err'; }
+  };
+  document.body.appendChild(script);
+
+  setTimeout(() => {
+    if (!done) { status.textContent = '✕ Google не ответил, попробуй ещё раз'; status.className = 'lock-status err'; }
+  }, 8000);
+}
+
+function unlockApp() {
+  document.getElementById('lockOverlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+}
+
+function lockApp() {
+  APP_PIN = null;
+  document.getElementById('pinInput').value = '';
+  document.getElementById('lockStatus').textContent = '\u00a0';
+  document.getElementById('lockStatus').className = 'lock-status';
+  document.getElementById('lockOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('pinInput').focus(), 100);
+}
 
 // ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
-function syncFromSheets() {
-  // Use JSONP to bypass CORS restriction
-  return new Promise((resolve) => {
-    const callbackName = 'sheetsCallback_' + Date.now();
-    const script = document.createElement('script');
-    
-    window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      if (data && data.status === 'ok' && data.data && data.data.length > 0) {
-        scans = data.data.map(s => ({
-          id: s.date + '_' + s.barcode,
-          date: s.date,
-          barcode: s.barcode,
-          name: s.name,
-          price: parseFloat(s.price) || 0,
-          qty: parseInt(s.qty) || 1
-        }));
-        saveScans();
-        renderStats();
-        renderToday();
-        renderHistory();
-        console.log('Синхронизировано:', scans.length, 'записей');
-      }
-      resolve();
-    };
-    
-    script.src = SCRIPT_URL + '?callback=' + callbackName;
-    script.onerror = () => { resolve(); };
-    document.body.appendChild(script);
-    
-    // Timeout after 5 seconds
-    setTimeout(resolve, 5000);
-  });
-}
-
 function init() {
-  // Load saved data from localStorage
   const savedProducts = localStorage.getItem('shop_products');
   const savedScans = localStorage.getItem('shop_scans');
   if (savedProducts) products = JSON.parse(savedProducts);
   if (savedScans) scans = JSON.parse(savedScans);
-  
-  // Sync history from Google Sheets on startup
-  syncFromSheets();
 
-  // Date header
   document.getElementById('hdate').textContent = new Date().toLocaleDateString('ru-RU', {day:'numeric',month:'long',year:'numeric'});
 
-  // Barcode input handler
+  // Barcode input → open quantity modal
   const inp = document.getElementById('barcodeInput');
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') processBarcode(inp.value.trim()) });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') askQuantity(inp.value.trim()) });
   inp.addEventListener('input', () => {
-    // Auto-submit if looks like full barcode (8-13 digits)
     const v = inp.value.trim().replace(/\D/g,'');
     if (v.length >= 8) {
       clearTimeout(inp._timer);
-      inp._timer = setTimeout(() => processBarcode(inp.value.trim()), 150);
+      inp._timer = setTimeout(() => askQuantity(inp.value.trim()), 150);
     }
   });
+
+  // PIN input → Enter submits
+  document.getElementById('pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock() });
+  // Qty input → Enter confirms
+  document.getElementById('qtyInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmQty() });
 
   updateDbBar();
   renderStats();
   renderToday();
-  renderHistory();
+  renderMonths();
   renderProducts();
+
+  setTimeout(() => document.getElementById('pinInput').focus(), 200);
 }
 
 // ══════════════════════════════════════
@@ -410,6 +506,7 @@ function showTab(name, el) {
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
   if (name === 'scan') setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+  if (name === 'months') renderMonths();
 }
 
 // ══════════════════════════════════════
@@ -429,16 +526,13 @@ function loadXlsx(input) {
 
       let imported = 0, skipped = 0;
       const newProducts = { ...products };
-
       const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
-      // Use fixed absolute column indices: A=0, D=3, H=7
-      const colAbsName     = range.s.c + 0;
-      const colAbsBarcode  = range.s.c + 3;
-      const colAbsPrice    = range.s.c + 7;
+      const colAbsName    = range.s.c + 0;  // A
+      const colAbsBarcode = range.s.c + 3;  // D
+      const colAbsPrice   = range.s.c + 7;  // H
 
       for (let r = range.s.r + 1; r <= range.e.r; r++) {
-        // Access cells by ABSOLUTE column index — avoids shift from empty cells
         const nameCell = ws[XLSX.utils.encode_cell({r, c: colAbsName})];
         const bcCell   = ws[XLSX.utils.encode_cell({r, c: colAbsBarcode})];
         const prCell   = ws[XLSX.utils.encode_cell({r, c: colAbsPrice})];
@@ -448,13 +542,8 @@ function loadXlsx(input) {
 
         let barcode = '';
         if (bcCell && bcCell.v !== undefined && bcCell.v !== '') {
-          if (typeof bcCell.v === 'number') {
-            barcode = String(Math.round(bcCell.v));
-          } else {
-            barcode = String(bcCell.v).replace(/[^\d]/g, '');
-          }
+          barcode = (typeof bcCell.v === 'number') ? String(Math.round(bcCell.v)) : String(bcCell.v).replace(/[^\d]/g,'');
         }
-
         if (!barcode || barcode.length < 4) { skipped++; continue; }
 
         const price = prCell && typeof prCell.v === 'number' ? prCell.v :
@@ -464,14 +553,13 @@ function loadXlsx(input) {
         imported++;
       }
 
-            products = newProducts;
+      products = newProducts;
       saveProducts();
       updateDbBar();
       renderProducts();
 
       const msg = `✓ Загружено ${imported} товаров` + (skipped ? ` (пропущено ${skipped})` : '');
       if (status) { status.textContent = msg; status.className = 'importStatus ok'; }
-      setStatus(msg, 'ok');
 
     } catch(err) {
       const msg = '✕ Ошибка чтения файла: ' + err.message;
@@ -483,58 +571,85 @@ function loadXlsx(input) {
 }
 
 // ══════════════════════════════════════
-//  BARCODE PROCESSING
+//  SCAN → ASK QUANTITY → RECORD
 // ══════════════════════════════════════
-function processBarcode(raw) {
+function askQuantity(raw) {
   const inp = document.getElementById('barcodeInput');
   inp.value = '';
-  inp.focus();
   if (!raw) return;
 
   const barcode = raw.replace(/[^\d]/g,'');
   if (barcode.length < 4) { setStatus('Слишком короткий штрихкод', 'warn'); return; }
 
+  pendingBarcode = barcode;
+  const product = products[barcode];
+
+  document.getElementById('qtyName').textContent = product ? product.name : `Неизвестный товар [${barcode}]`;
+  document.getElementById('qtyBc').textContent = barcode;
+  document.getElementById('qtyPrice').textContent = product ? fmtPrice(product.price) : '0 ₸ — нет в базе';
+
+  const qInp = document.getElementById('qtyInput');
+  qInp.value = '1';
+  document.getElementById('qtyModal').classList.add('show');
+  setTimeout(() => { qInp.focus(); qInp.select(); }, 100);
+}
+
+function confirmQty() {
+  const qty = parseInt(document.getElementById('qtyInput').value) || 0;
+  if (qty < 1) { return; }
+  recordScan(pendingBarcode, qty);
+  closeQtyModal();
+}
+
+function cancelQty() {
+  pendingBarcode = null;
+  closeQtyModal();
+  setStatus('Отменено', 'warn');
+}
+
+function closeQtyModal() {
+  document.getElementById('qtyModal').classList.remove('show');
+  setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+}
+
+function recordScan(barcode, qty) {
   const product = products[barcode];
   const today = todayStr();
-  const now = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
 
-  // Find if already scanned today
+  // локальное объединение за сегодня (для вкладок приложения)
   const existing = scans.find(s => s.barcode === barcode && s.date === today);
-
   if (existing) {
-    existing.qty++;
-    flashScan(true);
-    setStatus(`+1 → ${existing.name || barcode} × ${existing.qty}`, 'ok');
+    existing.qty += qty;
+    setStatus(`+${qty} → ${existing.name} = ${existing.qty} шт`, 'ok');
   } else {
-    const scan = {
+    scans.unshift({
       id: Date.now(),
       date: today,
-      time: now,
       barcode,
       name: product ? product.name : `[${barcode}]`,
       price: product ? product.price : 0,
-      qty: 1,
+      qty,
       unknown: !product
-    };
-    scans.unshift(scan);
-    flashScan(false);
-    if (product) {
-      setStatus(`✓ ${product.name} — ${fmtPrice(product.price)}`, 'ok');
-    } else {
-      setStatus(`⚠ Товар не найден: ${barcode}`, 'warn');
-    }
+    });
+    setStatus(product ? `✓ ${product.name} × ${qty}` : `⚠ Не в базе: ${barcode} × ${qty}`, product ? 'ok' : 'warn');
   }
 
+  flashScan();
   saveScans();
   renderStats();
   renderToday();
 
-  // Send to Google Sheets (fire and forget)
-  const scanToSend = scans.find(s => s.barcode === barcode && s.date === today);
-  if (scanToSend) sendToSheets(scanToSend);
+  // отправка в Google — шлём ТОЛЬКО что сейчас отсканировали (Google сам объединит за месяц)
+  sendToSheets({
+    date: today,
+    barcode,
+    name: product ? product.name : `[${barcode}]`,
+    price: product ? product.price : 0,
+    qty
+  });
 }
 
-function flashScan(isRepeat) {
+function flashScan() {
   const box = document.getElementById('scanBox');
   box.classList.remove('flash');
   void box.offsetWidth;
@@ -551,6 +666,7 @@ async function sendToSheets(scan) {
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        pin: APP_PIN,
         date: scan.date,
         barcode: scan.barcode,
         name: scan.name,
@@ -569,7 +685,6 @@ async function sendToSheets(scan) {
 function renderStats() {
   const today = todayStr();
   const month = today.slice(0, 7);
-
   const todayScans = scans.filter(s => s.date === today);
   const monthScans = scans.filter(s => s.date.startsWith(month));
 
@@ -604,11 +719,13 @@ function renderToday() {
   `).join('');
 }
 
-function renderHistory() {
-  const list = document.getElementById('historyList');
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+let openMonths = {};
+
+function renderMonths() {
+  const list = document.getElementById('monthsList');
   if (!scans.length) { list.innerHTML = '<div class="empty">Нет записей</div>'; return; }
 
-  // Group by month
   const groups = {};
   scans.forEach(s => {
     const m = s.date.slice(0, 7);
@@ -619,13 +736,25 @@ function renderHistory() {
   list.innerHTML = Object.keys(groups).sort().reverse().map(month => {
     const g = groups[month];
     const total = g.reduce((a, s) => a + s.price * s.qty, 0);
+    const items = g.reduce((a, s) => a + s.qty, 0);
     const [y, m] = month.split('-');
-    const mName = new Date(y, m-1).toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+    const mName = MONTHS_RU[parseInt(m)-1] + ' ' + y;
+    const isOpen = openMonths[month];
 
     return `
-      <div class="monthGroup">
-        <div class="monthTitle">${mName} <span class="monthTotal">${fmtPrice(total)}</span></div>
-        <div class="tblWrap" style="border-radius:0 0 10px 10px;border-top:none">
+      <div class="monthCard ${isOpen?'open':''}">
+        <div class="monthHead" onclick="toggleMonth('${month}')">
+          <div class="monthName">${mName}</div>
+          <div class="monthMeta">
+            <div style="text-align:right">
+              <div class="monthSum">${fmtPrice(total)}</div>
+              <div class="monthCnt">${items} шт · ${g.length} тов.</div>
+            </div>
+            <div class="monthArrow">▶</div>
+          </div>
+        </div>
+        <div class="monthBody">
+          <div class="tblHead"><div>Товар</div><div>Дата</div><div style="text-align:center">Кол-во</div><div style="text-align:right">Сумма</div></div>
           ${g.map(s => `
             <div class="trow">
               <div><div class="trow-name">${s.name}</div><div class="trow-bc">${s.barcode}</div></div>
@@ -638,6 +767,11 @@ function renderHistory() {
       </div>
     `;
   }).join('');
+}
+
+function toggleMonth(month) {
+  openMonths[month] = !openMonths[month];
+  renderMonths();
 }
 
 function renderProducts() {
@@ -720,20 +854,15 @@ function clearDb() {
   renderProducts();
 }
 
-function confirmClear() {
-  document.getElementById('confirmModal').classList.add('show');
-}
-
-function closeModal() {
-  document.getElementById('confirmModal').classList.remove('show');
-}
+function confirmClear() { document.getElementById('confirmModal').classList.add('show'); }
+function closeModal() { document.getElementById('confirmModal').classList.remove('show'); }
 
 function clearHistory() {
   scans = [];
   saveScans();
   renderStats();
   renderToday();
-  renderHistory();
+  renderMonths();
   closeModal();
 }
 
@@ -757,9 +886,7 @@ function setStatus(msg, type) {
   el.className = 'sstatus ' + (type || '');
 }
 
-function fmtPrice(n) {
-  return Math.round(n).toLocaleString('ru-RU') + ' ₸';
-}
+function fmtPrice(n) { return Math.round(n).toLocaleString('ru-RU') + ' ₸'; }
 
 function todayStr() {
   const d = new Date();
@@ -769,26 +896,19 @@ function todayStr() {
 function saveProducts() { localStorage.setItem('shop_products', JSON.stringify(products)); }
 function saveScans() { localStorage.setItem('shop_scans', JSON.stringify(scans)); }
 
-// Close modal on backdrop click
-document.getElementById('confirmModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+// Close modals on backdrop click
+document.getElementById('confirmModal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+document.getElementById('qtyModal').addEventListener('click', function(e){ if (e.target === this) cancelQty(); });
 
-// Keep focus on barcode input when on scan tab
+// Keep focus on barcode input when on scan tab (only if unlocked & no modal)
 document.addEventListener('click', function(e) {
+  if (APP_PIN === null) return;
+  if (document.getElementById('qtyModal').classList.contains('show')) return;
   const scanPage = document.getElementById('page-scan');
   if (scanPage.classList.contains('active') && !e.target.closest('button') && !e.target.closest('input')) {
     document.getElementById('barcodeInput').focus();
   }
 });
-function debugBarcode() {
-  const bc = prompt("Введи штрихкод для проверки:");
-  if (!bc) return;
-  const clean = bc.replace(/[^\d]/g,"");
-  const found = products[clean];
-  const keys = Object.keys(products).slice(0,5);
-  alert("Ищем: " + clean + "\nНайден: " + (found ? found.name + " - " + found.price : "НЕТ") + "\n\nПервые 5 ключей в базе:\n" + keys.join("\n"));
-}
 
 init();
 </script>
