@@ -308,6 +308,9 @@ header{
       <div class="slabel">Сканирование</div>
       <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off">
       <button class="btn primary" id="camBtn" onclick="startCamera()" style="width:100%;margin-top:10px;padding:12px;font-size:12px">📷 Сканировать камерой</button>
+      <button class="btn" onclick="document.getElementById('photoInput').click()" style="width:100%;margin-top:8px;padding:11px;font-size:11px">📸 Сфотографировать штрихкод</button>
+      <input type="file" accept="image/*" capture="environment" id="photoInput" style="display:none" onchange="scanPhoto(this)">
+      <div id="photoReader" style="display:none"></div>
       <div class="sstatus" id="sstatus">Ожидание сканирования...</div>
     </div>
 
@@ -662,6 +665,44 @@ function closeQtyModal() {
 // ══════════════════════════════════════
 //  CAMERA SCANNER
 // ══════════════════════════════════════
+// Список товарных штрихкодов (не QR)
+function retailFormats() {
+  if (typeof Html5QrcodeSupportedFormats === 'undefined') return null;
+  return [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.ITF
+  ];
+}
+
+// Распознавание штрихкода с ФОТО (родная камера телефона — надёжный автофокус)
+function scanPhoto(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  setStatus('⏳ Распознаю фото...', '');
+
+  const cfg = { verbose: false };
+  const fmts = retailFormats();
+  if (fmts) cfg.formatsToSupport = fmts;
+
+  const fileScanner = new Html5Qrcode('photoReader', cfg);
+  fileScanner.scanFile(file, false)
+    .then(decodedText => {
+      try { fileScanner.clear(); } catch (e) {}
+      if (navigator.vibrate) navigator.vibrate(80);
+      askQuantity(decodedText);
+    })
+    .catch(() => {
+      try { fileScanner.clear(); } catch (e) {}
+      setStatus('✕ Не разглядел штрихкод на фото — сфоткай ближе, ровно и при свете', 'err');
+    });
+}
+
 function startCamera() {
   if (typeof Html5Qrcode === 'undefined') {
     setStatus('Модуль камеры не загрузился — проверь интернет и обнови страницу', 'err');
@@ -672,15 +713,26 @@ function startCamera() {
   hint.textContent = 'Запускаю камеру...';
   hint.className = 'cam-hint';
 
-  if (!html5Qr) html5Qr = new Html5Qrcode('reader', {
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-    verbose: false
-  });
+  if (!html5Qr) {
+    const cfg = {
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false
+    };
+    const fmts = retailFormats();   // читаем именно товарные штрихкоды, а не QR
+    if (fmts) cfg.formatsToSupport = fmts;
+    html5Qr = new Html5Qrcode('reader', cfg);
+  }
   cameraActive = true;
+
+  // широкая зона сканирования — под горизонтальный штрихкод
+  const qrboxFn = (vw, vh) => ({
+    width: Math.floor(vw * 0.92),
+    height: Math.floor(Math.min(vh * 0.5, 200))
+  });
 
   html5Qr.start(
     { facingMode: 'environment' },
-    { fps: 15, qrbox: { width: 280, height: 170 } },
+    { fps: 15, qrbox: qrboxFn },
     onCamScan,
     () => {}  // ошибки отдельных кадров игнорируем
   ).then(() => {
@@ -714,7 +766,8 @@ function applyFocusFix() {
 
     document.getElementById('camControls').style.display = 'flex';
 
-    // 2) зум — если поддерживается, показываем ползунок и сразу немного приближаем
+    // 2) зум — показываем ползунок, но НЕ приближаем автоматически
+    //    (цифровой зум мылит картинку — пусть пользователь добавляет вручную при необходимости)
     if (caps.zoom && caps.zoom.max && caps.zoom.max > caps.zoom.min) {
       const wrap = document.getElementById('zoomWrap');
       const slider = document.getElementById('zoomSlider');
@@ -722,10 +775,8 @@ function applyFocusFix() {
       slider.min = caps.zoom.min;
       slider.max = caps.zoom.max;
       slider.step = caps.zoom.step || 0.1;
-      // стартовый зум: ~2× или треть диапазона — чтобы штрихкод был крупнее
-      const startZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 2));
-      slider.value = startZoom;
-      setZoom(startZoom);
+      slider.value = caps.zoom.min;
+      document.getElementById('zoomVal').textContent = Number(caps.zoom.min).toFixed(1) + '×';
     }
 
     // 3) фонарик — если поддерживается
