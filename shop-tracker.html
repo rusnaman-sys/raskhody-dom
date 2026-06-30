@@ -228,6 +228,12 @@ header{
 .cam-reader video{display:block;width:100%!important;height:auto!important}
 .cam-hint{font-size:11px;color:var(--txt2);margin-top:16px;text-align:center;min-height:18px;letter-spacing:.5px}
 .cam-hint.ok{color:var(--acc)}.cam-hint.err{color:var(--danger)}
+.cam-controls{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:14px;width:100%;max-width:380px}
+.cam-zoom{display:flex;align-items:center;gap:10px;width:100%;font-size:10px;color:var(--txt2);letter-spacing:1px}
+.cam-zoom span:first-child{color:var(--acc)}
+.cam-zoom #zoomVal{min-width:38px;text-align:right;color:var(--txt)}
+.cam-zoom input[type=range]{flex:1;accent-color:var(--acc);height:4px}
+#torchBtn.on{background:var(--warn);border-color:var(--warn);color:#000;font-weight:700}
 
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar{width:4px}
@@ -248,7 +254,7 @@ header{
     <div class="lock-icon">🔒</div>
     <div class="lock-title">РАС<span>ХОДЫ</span>.ДОМ</div>
     <div class="lock-sub">Введи код для входа</div>
-    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="12">
+    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="4">
     <div class="lock-status" id="lockStatus">&nbsp;</div>
     <button class="btn primary" onclick="tryUnlock()" style="width:100%;padding:12px;margin-top:8px">ВОЙТИ</button>
   </div>
@@ -369,6 +375,14 @@ header{
   <div class="cam-title">📷 Наведи камеру на штрихкод</div>
   <div class="cam-reader" id="reader"></div>
   <div class="cam-hint" id="camHint">Запускаю камеру...</div>
+  <div class="cam-controls" id="camControls" style="display:none">
+    <div class="cam-zoom" id="zoomWrap" style="display:none">
+      <span>ЗУМ</span>
+      <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" oninput="setZoom(this.value)">
+      <span id="zoomVal">1.0×</span>
+    </div>
+    <button class="btn" id="torchBtn" onclick="toggleTorch()" style="display:none">🔦 Фонарик</button>
+  </div>
   <button class="btn danger" onclick="stopCamera()" style="margin-top:18px;padding:11px 28px">✕ Закрыть</button>
 </div>
 
@@ -418,13 +432,18 @@ let html5Qr = null;     // объект камеры-сканера
 let cameraActive = false;
 let lastCamCode = '';
 let lastCamTime = 0;
+let camTrack = null;    // видео-дорожка камеры (для зума/фонарика)
+let torchOn = false;
 
 // ══════════════════════════════════════
 //  PIN LOCK
 // ══════════════════════════════════════
+let pinChecking = false;
 function tryUnlock() {
+  if (pinChecking) return;
   const pin = document.getElementById('pinInput').value.trim();
   if (!pin) return;
+  pinChecking = true;
   const status = document.getElementById('lockStatus');
   status.textContent = '⏳ Проверяю...';
   status.className = 'lock-status';
@@ -435,6 +454,7 @@ function tryUnlock() {
 
   window[cbName] = function(data) {
     done = true;
+    pinChecking = false;
     delete window[cbName];
     if (script.parentNode) document.body.removeChild(script);
     if (data && data.status === 'ok') {
@@ -446,7 +466,7 @@ function tryUnlock() {
       const inp = document.getElementById('pinInput');
       inp.classList.add('err');
       inp.value = '';
-      setTimeout(() => inp.classList.remove('err'), 400);
+      setTimeout(() => { inp.classList.remove('err'); inp.focus(); }, 400);
       status.textContent = '✕ Неверный код';
       status.className = 'lock-status err';
     }
@@ -454,12 +474,12 @@ function tryUnlock() {
 
   script.src = SCRIPT_URL + '?action=checkpin&pin=' + encodeURIComponent(pin) + '&callback=' + cbName;
   script.onerror = () => {
-    if (!done) { status.textContent = '✕ Нет связи с Google'; status.className = 'lock-status err'; }
+    if (!done) { pinChecking = false; status.textContent = '✕ Нет связи с Google'; status.className = 'lock-status err'; }
   };
   document.body.appendChild(script);
 
   setTimeout(() => {
-    if (!done) { status.textContent = '✕ Google не ответил, попробуй ещё раз'; status.className = 'lock-status err'; }
+    if (!done) { pinChecking = false; status.textContent = '✕ Google не ответил, попробуй ещё раз'; status.className = 'lock-status err'; }
   }, 8000);
 }
 
@@ -501,7 +521,13 @@ function init() {
   });
 
   // PIN input → Enter submits
-  document.getElementById('pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock() });
+  const pinEl = document.getElementById('pinInput');
+  pinEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock() });
+  pinEl.addEventListener('input', () => {
+    const v = pinEl.value.replace(/\D/g, '');     // только цифры
+    if (v !== pinEl.value) pinEl.value = v;
+    if (v.length === 4) tryUnlock();              // 4 цифры → проверяем сразу
+  });
   // Qty input → Enter confirms
   document.getElementById('qtyInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmQty() });
 
@@ -681,14 +707,54 @@ function applyFocusFix() {
     const stream = video && video.srcObject;
     if (!stream) return;
     const track = stream.getVideoTracks()[0];
-    if (!track || !track.getCapabilities) return;
+    if (!track) return;
+    camTrack = track;
+    if (!track.getCapabilities) return;
     const caps = track.getCapabilities();
+
+    // 1) непрерывный автофокус
     const advanced = [];
     if (caps.focusMode && caps.focusMode.indexOf('continuous') > -1) {
       advanced.push({ focusMode: 'continuous' });
     }
     if (advanced.length) track.applyConstraints({ advanced }).catch(() => {});
+
+    document.getElementById('camControls').style.display = 'flex';
+
+    // 2) зум — если поддерживается, показываем ползунок и сразу немного приближаем
+    if (caps.zoom && caps.zoom.max && caps.zoom.max > caps.zoom.min) {
+      const wrap = document.getElementById('zoomWrap');
+      const slider = document.getElementById('zoomSlider');
+      wrap.style.display = 'flex';
+      slider.min = caps.zoom.min;
+      slider.max = caps.zoom.max;
+      slider.step = caps.zoom.step || 0.1;
+      // стартовый зум: ~2× или треть диапазона — чтобы штрихкод был крупнее
+      const startZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 2));
+      slider.value = startZoom;
+      setZoom(startZoom);
+    }
+
+    // 3) фонарик — если поддерживается
+    if (caps.torch) {
+      document.getElementById('torchBtn').style.display = 'inline-block';
+    }
   } catch (e) {}
+}
+
+function setZoom(v) {
+  document.getElementById('zoomVal').textContent = Number(v).toFixed(1) + '×';
+  if (camTrack) {
+    try { camTrack.applyConstraints({ advanced: [{ zoom: Number(v) }] }).catch(() => {}); } catch (e) {}
+  }
+}
+
+function toggleTorch() {
+  if (!camTrack) return;
+  torchOn = !torchOn;
+  const btn = document.getElementById('torchBtn');
+  btn.classList.toggle('on', torchOn);
+  try { camTrack.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {}); } catch (e) {}
 }
 
 // Тап по видео — повторно навести фокус
@@ -726,7 +792,15 @@ function resumeCameraIfActive() {
 function stopCamera() {
   cameraActive = false;
   lastCamCode = '';
+  // выключаем фонарик перед остановкой
+  if (camTrack && torchOn) { try { camTrack.applyConstraints({ advanced: [{ torch: false }] }); } catch(e){} }
+  torchOn = false;
+  camTrack = null;
   document.getElementById('camOverlay').classList.remove('show');
+  document.getElementById('camControls').style.display = 'none';
+  document.getElementById('zoomWrap').style.display = 'none';
+  const tb = document.getElementById('torchBtn');
+  tb.style.display = 'none'; tb.classList.remove('on');
   if (html5Qr) {
     html5Qr.stop().then(() => { try { html5Qr.clear(); } catch(e){} }).catch(() => {});
   }
