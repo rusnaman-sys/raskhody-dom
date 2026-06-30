@@ -348,6 +348,8 @@ header{
       <div class="importStatus" id="importStatus"></div>
     </div>
 
+    <button class="btn primary" onclick="loadProductsFromCloud(true)" style="width:100%;margin-bottom:16px;padding:11px">☁ Обновить базу из облака сейчас</button>
+
     <!-- Manual add -->
     <div class="addForm">
       <h4>Добавить вручную</h4>
@@ -540,6 +542,10 @@ function init() {
   renderMonths();
   renderProducts();
 
+  // при каждом открытии тихо подтягиваем свежую базу из облака
+  // (кэш показывается сразу, облако обновит её в фоне; пустое облако базу не затрёт)
+  loadProductsFromCloud(false);
+
   setTimeout(() => document.getElementById('pinInput').focus(), 200);
 }
 
@@ -605,7 +611,10 @@ function loadXlsx(input) {
       renderProducts();
 
       const msg = `✓ Загружено ${imported} товаров` + (skipped ? ` (пропущено ${skipped})` : '');
-      if (status) { status.textContent = msg; status.className = 'importStatus ok'; }
+      if (status) { status.textContent = msg + ' · отправляю в облако...'; status.className = 'importStatus ok'; }
+
+      // отправляем базу в Google, чтобы другие устройства брали её оттуда
+      uploadProductsToCloud(status, msg);
 
     } catch(err) {
       const msg = '✕ Ошибка чтения файла: ' + err.message;
@@ -892,6 +901,70 @@ function flashScan() {
   box.classList.remove('flash');
   void box.offsetWidth;
   box.classList.add('flash');
+}
+
+// ══════════════════════════════════════
+//  ОБЛАЧНАЯ БАЗА ТОВАРОВ
+// ══════════════════════════════════════
+// Отправить всю базу товаров в Google (вызывается после загрузки XLSX)
+function uploadProductsToCloud(statusEl, baseMsg) {
+  const items = Object.keys(products).map(bc => ({
+    barcode: bc,
+    name: products[bc].name,
+    price: products[bc].price
+  }));
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveproducts', pin: APP_PIN, products: items })
+  }).then(() => {
+    if (statusEl) { statusEl.textContent = (baseMsg || '') + ' · ✓ база в облаке'; statusEl.className = 'importStatus ok'; }
+  }).catch(() => {
+    if (statusEl) { statusEl.textContent = (baseMsg || '') + ' · ⚠ облако недоступно, сохранил локально'; statusEl.className = 'importStatus'; }
+  });
+}
+
+// Загрузить базу товаров из Google (JSONP)
+function loadProductsFromCloud(showMsg) {
+  const status = document.getElementById('importStatus');
+  if (showMsg && status) { status.textContent = '☁ Загружаю из облака...'; status.className = 'importStatus'; }
+
+  const cb = 'getProd_' + Date.now();
+  const script = document.createElement('script');
+  let done = false;
+
+  window[cb] = function(data) {
+    done = true;
+    delete window[cb];
+    if (script.parentNode) document.body.removeChild(script);
+    if (data && data.status === 'ok' && Array.isArray(data.products)) {
+      const obj = {};
+      data.products.forEach(p => {
+        const bc = String(p.b).split('.')[0];
+        if (bc) obj[bc] = { name: p.n || ('[' + bc + ']'), price: parseFloat(p.p) || 0 };
+      });
+      if (Object.keys(obj).length) {
+        products = obj;
+        saveProducts();
+        updateDbBar();
+        renderProducts();
+      }
+      if (showMsg && status) {
+        status.textContent = '✓ Из облака загружено: ' + Object.keys(obj).length + ' товаров';
+        status.className = 'importStatus ok';
+      }
+    } else if (showMsg && status) {
+      status.textContent = '⚠ В облаке пока нет базы — загрузи XLSX один раз на любом устройстве';
+      status.className = 'importStatus';
+    }
+  };
+
+  script.src = SCRIPT_URL + '?action=getproducts&callback=' + cb;
+  script.onerror = () => { if (!done && showMsg && status) { status.textContent = '✕ Нет связи с облаком'; status.className = 'importStatus err'; } };
+  document.body.appendChild(script);
+
+  setTimeout(() => { if (!done && showMsg && status) { status.textContent = '✕ Облако не ответило, попробуй ещё раз'; status.className = 'importStatus err'; } }, 20000);
 }
 
 // ══════════════════════════════════════
