@@ -583,6 +583,7 @@ function init() {
   loadProductsFromCloud(false);
   // и общий список взятых товаров со всех устройств
   loadExpensesFromCloud();
+  loadTodayFromCloud();
 
   setTimeout(() => document.getElementById('pinInput').focus(), 200);
 }
@@ -595,7 +596,7 @@ function showTab(name, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
-  if (name === 'scan') setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+  if (name === 'scan') { loadTodayFromCloud(); setTimeout(() => document.getElementById('barcodeInput').focus(), 100); }
   if (name === 'months') { loadExpensesFromCloud(); renderMonths(); }
 }
 
@@ -900,41 +901,25 @@ function stopCamera() {
 function recordScan(barcode, qty) {
   const product = products[barcode];
   const today = todayStr();
+  const name = product ? product.name : `[${barcode}]`;
+  const price = product ? product.price : 0;
 
-  // локальное объединение за сегодня (для вкладок приложения)
-  const existing = scans.find(s => s.barcode === barcode && s.date === today);
-  if (existing) {
-    existing.qty += qty;
-    setStatus(`+${qty} → ${existing.name} = ${existing.qty} шт`, 'ok');
-  } else {
-    scans.unshift({
-      id: Date.now(),
-      date: today,
-      barcode,
-      name: product ? product.name : `[${barcode}]`,
-      price: product ? product.price : 0,
-      qty,
-      unknown: !product
-    });
-    setStatus(product ? `✓ ${product.name} × ${qty}` : `⚠ Не в базе: ${barcode} × ${qty}`, product ? 'ok' : 'warn');
-  }
+  // каждый скан — отдельная запись
+  scans.unshift({ id: Date.now(), date: today, barcode, name, price, qty, unknown: !product });
+  // мгновенно показываем в общем списке (потом облако пришлёт точные данные)
+  if (cloudTodayLoaded) cloudToday.unshift({ d: today, b: barcode, n: name, p: price, q: qty });
+  setStatus(product ? `✓ ${name} × ${qty}` : `⚠ Не в базе: ${barcode} × ${qty}`, product ? 'ok' : 'warn');
 
   flashScan();
   saveScans();
   renderStats();
   renderToday();
 
-  // отправка в Google — шлём ТОЛЬКО что сейчас отсканировали (Google сам объединит за месяц)
-  sendToSheets({
-    date: today,
-    barcode,
-    name: product ? product.name : `[${barcode}]`,
-    price: product ? product.price : 0,
-    qty
-  });
+  // отправка в Google
+  sendToSheets({ date: today, barcode, name, price, qty });
 
-  // через секунду подтянем общий список (чтобы учесть и другие устройства)
-  setTimeout(loadExpensesFromCloud, 1500);
+  // через секунду подтянем общий список со всех устройств
+  setTimeout(() => { loadTodayFromCloud(); loadExpensesFromCloud(); }, 1500);
 }
 
 function flashScan() {
@@ -1027,6 +1012,25 @@ function loadProductsFromCloud(showMsg) {
   setTimeout(() => { if (!done && showMsg && status) { status.textContent = '✕ Облако не ответило, попробуй ещё раз'; status.className = 'importStatus err'; } }, 20000);
 }
 
+// Загрузить сканы за сегодня со ВСЕХ устройств (журнал, JSONP)
+function loadTodayFromCloud() {
+  const cb = 'getToday_' + Date.now();
+  const script = document.createElement('script');
+  window[cb] = function(data) {
+    delete window[cb];
+    if (script.parentNode) document.body.removeChild(script);
+    if (data && data.status === 'ok' && Array.isArray(data.today)) {
+      cloudToday = data.today;
+      cloudTodayLoaded = true;
+      renderStats();
+      renderToday();
+    }
+  };
+  script.src = SCRIPT_URL + '?action=gettoday&date=' + encodeURIComponent(todayStr()) + '&callback=' + cb;
+  script.onerror = () => {};
+  document.body.appendChild(script);
+}
+
 // Загрузить взятые товары со ВСЕХ устройств из Google (JSONP)
 function loadExpensesFromCloud() {
   const cb = 'getExp_' + Date.now();
@@ -1077,13 +1081,10 @@ async function sendToSheets(scan) {
 function renderStats() {
   const today = todayStr();
 
-  const todayScans = scans.filter(s => s.date === today);
-  const sum = arr => arr.reduce((a, s) => a + s.price * s.qty, 0);
-  const cnt = arr => arr.reduce((a, s) => a + s.qty, 0);
-
-  // Сегодня — локально (что взято на этом телефоне сегодня)
-  document.getElementById('todaySum').textContent = fmtPrice(sum(todayScans));
-  document.getElementById('todayCount').textContent = cnt(todayScans) + ' позиций';
+  // Сегодня — со ВСЕХ устройств (из облачного журнала)
+  const todayRows = getTodayRows();
+  document.getElementById('todaySum').textContent = fmtPrice(todayRows.reduce((a, r) => a + r.price * r.qty, 0));
+  document.getElementById('todayCount').textContent = todayRows.reduce((a, r) => a + r.qty, 0) + ' позиций';
 
   // Месяц — со всех устройств (из облака)
   const curMonthName = monthNameFromDate(today);
@@ -1094,21 +1095,20 @@ function renderStats() {
 }
 
 function renderToday() {
-  const today = todayStr();
   const list = document.getElementById('todayList');
-  const todayScans = scans.filter(s => s.date === today);
+  const rows = getTodayRows();
 
-  if (!todayScans.length) {
+  if (!rows.length) {
     list.innerHTML = '<div class="empty">Нет записей за сегодня</div>';
     return;
   }
 
-  list.innerHTML = todayScans.map((s, i) => `
+  list.innerHTML = rows.map((r, i) => `
     <div class="trow ${i===0?'new':''}">
-      <div><div class="trow-name">${s.name}</div><div class="trow-bc">${s.barcode}</div></div>
-      <div class="trow-date">${s.date}</div>
-      <div class="trow-qty">${s.qty}</div>
-      <div class="trow-price">${fmtPrice(s.price * s.qty)}</div>
+      <div><div class="trow-name">${r.name}</div><div class="trow-bc">${r.barcode}</div></div>
+      <div class="trow-date">${r.date}</div>
+      <div class="trow-qty">${r.qty}</div>
+      <div class="trow-price">${fmtPrice(r.price * r.qty)}</div>
     </div>
   `).join('');
 }
@@ -1116,6 +1116,26 @@ function renderToday() {
 const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 let openMonths = {};
 let cloudExpenses = []; // взятые товары со ВСЕХ устройств (из Google)
+let cloudToday = [];        // сканы за сегодня со ВСЕХ устройств (журнал)
+let cloudTodayLoaded = false;
+
+// Строки за сегодня: из облачного журнала (все устройства) или локальные, пока не подгрузилось
+function getTodayRows(){
+  const today = todayStr();
+  let rows;
+  if (cloudTodayLoaded){
+    rows = cloudToday.map(e => ({
+      date: String(e.d),
+      barcode: String(e.b).split('.')[0],
+      name: e.n,
+      price: parseFloat(e.p) || 0,
+      qty: parseInt(e.q) || 0
+    }));
+  } else {
+    rows = scans.map(s => ({ date: s.date, barcode: s.barcode, name: s.name, price: s.price, qty: s.qty }));
+  }
+  return rows.filter(r => r.date === today);
+}
 
 function monthNameFromDate(d){ const p=String(d).split('-'); return MONTHS_RU[parseInt(p[1])-1] + ' ' + p[0]; }
 function monthOrderName(name){ const p=String(name).split(' '); return parseInt(p[1])*12 + MONTHS_RU.indexOf(p[0]); }
