@@ -241,8 +241,45 @@ header{
 ::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:2px}
 
 /* ── RESPONSIVE ── */
-@media(max-width:500px){
-  .tblHead,.trow{grid-template-columns:1fr 80px 44px 44px}
+@media(max-width:640px){
+  .wrap{padding:14px 11px}
+  .logo{font-size:18px}
+  .hdate,.lockbtn{font-size:12px;padding:6px 10px}
+  .dbbar{font-size:13px;padding:12px 14px;flex-wrap:wrap;gap:8px}
+  .dbinfo{font-size:13px;flex-basis:100%;order:2}
+  .dbbtns{order:3}
+  .btn{font-size:13px;padding:10px 14px}
+  .tabs{padding:5px;gap:3px}
+  .tab{font-size:12px;padding:13px 4px}
+  .stats{grid-template-columns:1fr 1fr;gap:10px}
+  .stat{padding:15px 14px}
+  .stat-label{font-size:11px}
+  .stat-val{font-size:24px}
+  .stat-sub{font-size:11px}
+  .slabel{font-size:11px}
+  #barcodeInput{font-size:18px;padding:16px}
+  .sstatus{font-size:13px}
+  .tblHead{font-size:11px}
+  .tblHead,.trow{grid-template-columns:1fr 84px 42px 62px}
+  .trow{font-size:14px;padding:13px 12px}
+  .trow-name{font-size:14px}
+  .trow-bc{font-size:11px}
+  .trow-date{font-size:12px}
+  .prodRow{font-size:13px;grid-template-columns:1fr 92px 40px;padding:12px 12px}
+  .prodName{font-size:13px}.prodBc{font-size:11px}
+  .monthName{font-size:17px}
+  .monthSum{font-size:17px}.monthCnt{font-size:11px}
+  .monthHead{padding:16px 16px}
+  .importBox{padding:30px 18px}
+  .importTitle{font-size:15px}.importSub{font-size:12px}.importStatus{font-size:13px}
+  .addForm h4{font-size:12px}
+  .finput{font-size:16px;padding:12px 13px}
+  .modal{padding:22px}
+  .modal h3{font-size:17px}.modal p{font-size:13px}
+  .qtyName{font-size:15px}.qtyMeta{font-size:12px}.qtyLabel{font-size:11px}
+  #qtyInput{font-size:36px;padding:18px}
+  #pinInput{font-size:30px;padding:18px}
+  .lock-title{font-size:20px}.lock-sub{font-size:13px}
 }
 </style>
 </head>
@@ -307,8 +344,7 @@ header{
     <div class="scanBox" id="scanBox">
       <div class="slabel">Сканирование</div>
       <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off">
-      <button class="btn primary" id="camBtn" onclick="startCamera()" style="width:100%;margin-top:10px;padding:12px;font-size:12px">📷 Сканировать камерой</button>
-      <button class="btn" onclick="document.getElementById('photoInput').click()" style="width:100%;margin-top:8px;padding:11px;font-size:11px">📸 Сфотографировать штрихкод</button>
+      <button class="btn primary" onclick="document.getElementById('photoInput').click()" style="width:100%;margin-top:10px;padding:14px;font-size:14px">📸 Сфотографировать штрихкод</button>
       <input type="file" accept="image/*" capture="environment" id="photoInput" style="display:none" onchange="scanPhoto(this)">
       <div id="photoReader" style="display:none"></div>
       <div class="sstatus" id="sstatus">Ожидание сканирования...</div>
@@ -545,6 +581,8 @@ function init() {
   // при каждом открытии тихо подтягиваем свежую базу из облака
   // (кэш показывается сразу, облако обновит её в фоне; пустое облако базу не затрёт)
   loadProductsFromCloud(false);
+  // и общий список взятых товаров со всех устройств
+  loadExpensesFromCloud();
 
   setTimeout(() => document.getElementById('pinInput').focus(), 200);
 }
@@ -558,7 +596,7 @@ function showTab(name, el) {
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
   if (name === 'scan') setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
-  if (name === 'months') renderMonths();
+  if (name === 'months') { loadExpensesFromCloud(); renderMonths(); }
 }
 
 // ══════════════════════════════════════
@@ -894,6 +932,9 @@ function recordScan(barcode, qty) {
     price: product ? product.price : 0,
     qty
   });
+
+  // через секунду подтянем общий список (чтобы учесть и другие устройства)
+  setTimeout(loadExpensesFromCloud, 1500);
 }
 
 function flashScan() {
@@ -986,6 +1027,27 @@ function loadProductsFromCloud(showMsg) {
   setTimeout(() => { if (!done && showMsg && status) { status.textContent = '✕ Облако не ответило, попробуй ещё раз'; status.className = 'importStatus err'; } }, 20000);
 }
 
+// Загрузить взятые товары со ВСЕХ устройств из Google (JSONP)
+function loadExpensesFromCloud() {
+  const cb = 'getExp_' + Date.now();
+  const script = document.createElement('script');
+  let done = false;
+  window[cb] = function(data) {
+    done = true;
+    delete window[cb];
+    if (script.parentNode) document.body.removeChild(script);
+    if (data && data.status === 'ok' && Array.isArray(data.expenses)) {
+      cloudExpenses = data.expenses;
+      renderStats();
+      renderMonths();
+    }
+  };
+  script.src = SCRIPT_URL + '?action=getexpenses&callback=' + cb;
+  script.onerror = () => {};
+  document.body.appendChild(script);
+  setTimeout(() => { done = true; }, 15000);
+}
+
 // ══════════════════════════════════════
 //  GOOGLE SHEETS SYNC
 // ══════════════════════════════════════
@@ -1014,20 +1076,21 @@ async function sendToSheets(scan) {
 // ══════════════════════════════════════
 function renderStats() {
   const today = todayStr();
-  const month = today.slice(0, 7);
-  const todayScans = scans.filter(s => s.date === today);
-  const monthScans = scans.filter(s => s.date.startsWith(month));
 
+  const todayScans = scans.filter(s => s.date === today);
   const sum = arr => arr.reduce((a, s) => a + s.price * s.qty, 0);
   const cnt = arr => arr.reduce((a, s) => a + s.qty, 0);
 
-  const mName = MONTHS_RU[parseInt(month.split('-')[1]) - 1];
-  document.getElementById('monthLabel').textContent = mName;
-
+  // Сегодня — локально (что взято на этом телефоне сегодня)
   document.getElementById('todaySum').textContent = fmtPrice(sum(todayScans));
   document.getElementById('todayCount').textContent = cnt(todayScans) + ' позиций';
-  document.getElementById('monthSum').textContent = fmtPrice(sum(monthScans));
-  document.getElementById('monthCount').textContent = cnt(monthScans) + ' позиций';
+
+  // Месяц — со всех устройств (из облака)
+  const curMonthName = monthNameFromDate(today);
+  document.getElementById('monthLabel').textContent = curMonthName.split(' ')[0];
+  const monthRows = getExpenseRows().filter(r => r.month === curMonthName);
+  document.getElementById('monthSum').textContent = fmtPrice(monthRows.reduce((a, r) => a + r.price * r.qty, 0));
+  document.getElementById('monthCount').textContent = monthRows.reduce((a, r) => a + r.qty, 0) + ' позиций';
 }
 
 function renderToday() {
@@ -1052,30 +1115,50 @@ function renderToday() {
 
 const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 let openMonths = {};
+let cloudExpenses = []; // взятые товары со ВСЕХ устройств (из Google)
+
+function monthNameFromDate(d){ const p=String(d).split('-'); return MONTHS_RU[parseInt(p[1])-1] + ' ' + p[0]; }
+function monthOrderName(name){ const p=String(name).split(' '); return parseInt(p[1])*12 + MONTHS_RU.indexOf(p[0]); }
+
+// Объединённые записи: из облака (все устройства) или локальные, пока облако не подгрузилось
+function getExpenseRows(){
+  if (cloudExpenses && cloudExpenses.length){
+    return cloudExpenses.map(e => ({
+      month: e.m,
+      date: e.d,
+      barcode: String(e.b).split('.')[0],
+      name: e.n,
+      price: parseFloat(e.p) || 0,
+      qty: parseInt(e.q) || 0
+    }));
+  }
+  return scans.map(s => ({
+    month: monthNameFromDate(s.date),
+    date: s.date, barcode: s.barcode, name: s.name,
+    price: s.price, qty: s.qty
+  }));
+}
 
 function renderMonths() {
   const list = document.getElementById('monthsList');
-  if (!scans.length) { list.innerHTML = '<div class="empty">Нет записей</div>'; return; }
+  const rows = getExpenseRows();
+  if (!rows.length) { list.innerHTML = '<div class="empty">Нет записей</div>'; return; }
 
   const groups = {};
-  scans.forEach(s => {
-    const m = s.date.slice(0, 7);
-    if (!groups[m]) groups[m] = [];
-    groups[m].push(s);
-  });
+  rows.forEach(r => { (groups[r.month] = groups[r.month] || []).push(r); });
 
-  list.innerHTML = Object.keys(groups).sort().reverse().map(month => {
-    const g = groups[month];
-    const total = g.reduce((a, s) => a + s.price * s.qty, 0);
-    const items = g.reduce((a, s) => a + s.qty, 0);
-    const [y, m] = month.split('-');
-    const mName = MONTHS_RU[parseInt(m)-1] + ' ' + y;
-    const isOpen = openMonths[month];
+  const names = Object.keys(groups).sort((a,b) => monthOrderName(b) - monthOrderName(a));
+
+  list.innerHTML = names.map(name => {
+    const g = groups[name];
+    const total = g.reduce((a, r) => a + r.price * r.qty, 0);
+    const items = g.reduce((a, r) => a + r.qty, 0);
+    const isOpen = openMonths[name];
 
     return `
       <div class="monthCard ${isOpen?'open':''}">
-        <div class="monthHead" onclick="toggleMonth('${month}')">
-          <div class="monthName">${mName}</div>
+        <div class="monthHead" onclick="toggleMonth('${name}')">
+          <div class="monthName">${name}</div>
           <div class="monthMeta">
             <div style="text-align:right">
               <div class="monthSum">${fmtPrice(total)}</div>
@@ -1086,12 +1169,12 @@ function renderMonths() {
         </div>
         <div class="monthBody">
           <div class="tblHead"><div>Товар</div><div>Дата</div><div style="text-align:center">Кол-во</div><div style="text-align:right">Сумма</div></div>
-          ${g.map(s => `
+          ${g.map(r => `
             <div class="trow">
-              <div><div class="trow-name">${s.name}</div><div class="trow-bc">${s.barcode}</div></div>
-              <div class="trow-date">${s.date}</div>
-              <div class="trow-qty">${s.qty}</div>
-              <div class="trow-price">${fmtPrice(s.price * s.qty)}</div>
+              <div><div class="trow-name">${r.name}</div><div class="trow-bc">${r.barcode}</div></div>
+              <div class="trow-date">${r.date}</div>
+              <div class="trow-qty">${r.qty}</div>
+              <div class="trow-price">${fmtPrice(r.price * r.qty)}</div>
             </div>
           `).join('')}
         </div>
@@ -1100,8 +1183,8 @@ function renderMonths() {
   }).join('');
 }
 
-function toggleMonth(month) {
-  openMonths[month] = !openMonths[month];
+function toggleMonth(name) {
+  openMonths[name] = !openMonths[name];
   renderMonths();
 }
 
