@@ -646,22 +646,56 @@ function startCamera() {
   hint.textContent = 'Запускаю камеру...';
   hint.className = 'cam-hint';
 
-  if (!html5Qr) html5Qr = new Html5Qrcode('reader');
+  if (!html5Qr) html5Qr = new Html5Qrcode('reader', {
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    verbose: false
+  });
   cameraActive = true;
 
+  const camConfig = {
+    facingMode: 'environment',
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    advanced: [{ focusMode: 'continuous' }]
+  };
+
   html5Qr.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 260, height: 150 } },
+    camConfig,
+    { fps: 15, qrbox: { width: 280, height: 170 }, aspectRatio: 1.7777778 },
     onCamScan,
     () => {}  // ошибки отдельных кадров игнорируем
   ).then(() => {
     hint.textContent = 'Навели на штрихкод...';
+    applyFocusFix();
   }).catch(err => {
     hint.textContent = '✕ Нет доступа к камере: ' + err;
     hint.className = 'cam-hint err';
     cameraActive = false;
   });
 }
+
+// Включаем непрерывный автофокус на самой камере (если телефон поддерживает)
+function applyFocusFix() {
+  try {
+    const video = document.querySelector('#reader video');
+    const stream = video && video.srcObject;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    const advanced = [];
+    if (caps.focusMode && caps.focusMode.indexOf('continuous') > -1) {
+      advanced.push({ focusMode: 'continuous' });
+    }
+    if (advanced.length) track.applyConstraints({ advanced }).catch(() => {});
+  } catch (e) {}
+}
+
+// Тап по видео — повторно навести фокус
+document.addEventListener('DOMContentLoaded', () => {
+  const r = document.getElementById('reader');
+  if (r) r.addEventListener('click', applyFocusFix);
+});
 
 function onCamScan(decodedText) {
   const code = String(decodedText).replace(/[^\d]/g, '');
