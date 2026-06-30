@@ -678,16 +678,9 @@ function startCamera() {
   });
   cameraActive = true;
 
-  const camConfig = {
-    facingMode: 'environment',
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    advanced: [{ focusMode: 'continuous' }]
-  };
-
   html5Qr.start(
-    camConfig,
-    { fps: 15, qrbox: { width: 280, height: 170 }, aspectRatio: 1.7777778 },
+    { facingMode: 'environment' },
+    { fps: 15, qrbox: { width: 280, height: 170 } },
     onCamScan,
     () => {}  // ошибки отдельных кадров игнорируем
   ).then(() => {
