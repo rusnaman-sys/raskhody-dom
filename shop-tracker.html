@@ -6,6 +6,7 @@
 <title>Расходы — Дом</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root {
   --bg:#0a0a0a; --sur:#141414; --sur2:#1a1a1a; --sur3:#202020;
@@ -219,6 +220,15 @@ header{
 .lock-status.err{color:var(--danger)}
 .lock-status.ok{color:var(--acc)}
 
+/* ── CAMERA SCANNER ── */
+.cam-overlay{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:400;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.cam-overlay.show{display:flex}
+.cam-title{font-family:'Unbounded',sans-serif;font-size:14px;margin-bottom:16px;color:var(--txt);text-align:center}
+.cam-reader{width:100%;max-width:380px;border:2px solid var(--acc);border-radius:14px;overflow:hidden;background:#000;box-shadow:0 0 30px rgba(0,229,160,.2)}
+.cam-reader video{display:block;width:100%!important;height:auto!important}
+.cam-hint{font-size:11px;color:var(--txt2);margin-top:16px;text-align:center;min-height:18px;letter-spacing:.5px}
+.cam-hint.ok{color:var(--acc)}.cam-hint.err{color:var(--danger)}
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -291,6 +301,7 @@ header{
     <div class="scanBox" id="scanBox">
       <div class="slabel">Сканирование</div>
       <input type="text" id="barcodeInput" placeholder="Поднеси штрихкод..." autocomplete="off">
+      <button class="btn primary" id="camBtn" onclick="startCamera()" style="width:100%;margin-top:10px;padding:12px;font-size:12px">📷 Сканировать камерой</button>
       <div class="sstatus" id="sstatus">Ожидание сканирования...</div>
     </div>
 
@@ -353,6 +364,14 @@ header{
 
 </div>
 
+<!-- ═══ CAMERA SCANNER OVERLAY ═══ -->
+<div class="cam-overlay" id="camOverlay">
+  <div class="cam-title">📷 Наведи камеру на штрихкод</div>
+  <div class="cam-reader" id="reader"></div>
+  <div class="cam-hint" id="camHint">Запускаю камеру...</div>
+  <button class="btn danger" onclick="stopCamera()" style="margin-top:18px;padding:11px 28px">✕ Закрыть</button>
+</div>
+
 <!-- ═══ QUANTITY MODAL ═══ -->
 <div class="modal-overlay" id="qtyModal">
   <div class="modal">
@@ -395,6 +414,10 @@ let products = {};      // { barcode: { name, price } }
 let scans = [];         // [{ id, date, barcode, name, price, qty }]
 let APP_PIN = null;     // пароль текущей сессии (в памяти, не сохраняется)
 let pendingBarcode = null; // штрихкод, ожидающий ввода количества
+let html5Qr = null;     // объект камеры-сканера
+let cameraActive = false;
+let lastCamCode = '';
+let lastCamTime = 0;
 
 // ══════════════════════════════════════
 //  PIN LOCK
@@ -446,6 +469,7 @@ function unlockApp() {
 }
 
 function lockApp() {
+  if (cameraActive) stopCamera();
   APP_PIN = null;
   document.getElementById('pinInput').value = '';
   document.getElementById('lockStatus').textContent = '\u00a0';
@@ -602,7 +626,76 @@ function cancelQty() {
 
 function closeQtyModal() {
   document.getElementById('qtyModal').classList.remove('show');
-  setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+  if (cameraActive) {
+    resumeCameraIfActive();
+  } else {
+    setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+  }
+}
+
+// ══════════════════════════════════════
+//  CAMERA SCANNER
+// ══════════════════════════════════════
+function startCamera() {
+  if (typeof Html5Qrcode === 'undefined') {
+    setStatus('Модуль камеры не загрузился — проверь интернет и обнови страницу', 'err');
+    return;
+  }
+  document.getElementById('camOverlay').classList.add('show');
+  const hint = document.getElementById('camHint');
+  hint.textContent = 'Запускаю камеру...';
+  hint.className = 'cam-hint';
+
+  if (!html5Qr) html5Qr = new Html5Qrcode('reader');
+  cameraActive = true;
+
+  html5Qr.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 260, height: 150 } },
+    onCamScan,
+    () => {}  // ошибки отдельных кадров игнорируем
+  ).then(() => {
+    hint.textContent = 'Навели на штрихкод...';
+  }).catch(err => {
+    hint.textContent = '✕ Нет доступа к камере: ' + err;
+    hint.className = 'cam-hint err';
+    cameraActive = false;
+  });
+}
+
+function onCamScan(decodedText) {
+  const code = String(decodedText).replace(/[^\d]/g, '');
+  const now = Date.now();
+  // защита от повторного срабатывания на тот же код
+  if (code === lastCamCode && now - lastCamTime < 2500) return;
+  lastCamCode = code;
+  lastCamTime = now;
+
+  if (navigator.vibrate) navigator.vibrate(80);
+  try { html5Qr.pause(true); } catch(e) {}
+  const hint = document.getElementById('camHint');
+  hint.textContent = '✓ Считано: ' + code;
+  hint.className = 'cam-hint ok';
+
+  askQuantity(decodedText);
+}
+
+function resumeCameraIfActive() {
+  if (cameraActive && html5Qr) {
+    try { html5Qr.resume(); } catch(e) {}
+    const hint = document.getElementById('camHint');
+    hint.textContent = 'Наведи на следующий товар';
+    hint.className = 'cam-hint';
+  }
+}
+
+function stopCamera() {
+  cameraActive = false;
+  lastCamCode = '';
+  document.getElementById('camOverlay').classList.remove('show');
+  if (html5Qr) {
+    html5Qr.stop().then(() => { try { html5Qr.clear(); } catch(e){} }).catch(() => {});
+  }
 }
 
 function recordScan(barcode, qty) {
@@ -897,6 +990,7 @@ document.getElementById('qtyModal').addEventListener('click', function(e){ if (e
 // Keep focus on barcode input when on scan tab (only if unlocked & no modal)
 document.addEventListener('click', function(e) {
   if (APP_PIN === null) return;
+  if (cameraActive) return;
   if (document.getElementById('qtyModal').classList.contains('show')) return;
   const scanPage = document.getElementById('page-scan');
   if (scanPage.classList.contains('active') && !e.target.closest('button') && !e.target.closest('input')) {
