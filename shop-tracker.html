@@ -906,23 +906,42 @@ function flashScan() {
 // ══════════════════════════════════════
 //  ОБЛАЧНАЯ БАЗА ТОВАРОВ
 // ══════════════════════════════════════
-// Отправить всю базу товаров в Google (вызывается после загрузки XLSX)
-function uploadProductsToCloud(statusEl, baseMsg) {
+// Отправить всю базу товаров в Google ЧАСТЯМИ (надёжно для тысяч позиций)
+async function uploadProductsToCloud(statusEl, baseMsg) {
   const items = Object.keys(products).map(bc => ({
     barcode: bc,
     name: products[bc].name,
     price: products[bc].price
   }));
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'saveproducts', pin: APP_PIN, products: items })
-  }).then(() => {
-    if (statusEl) { statusEl.textContent = (baseMsg || '') + ' · ✓ база в облаке'; statusEl.className = 'importStatus ok'; }
-  }).catch(() => {
-    if (statusEl) { statusEl.textContent = (baseMsg || '') + ' · ⚠ облако недоступно, сохранил локально'; statusEl.className = 'importStatus'; }
-  });
+  if (!items.length) return;
+
+  const CHUNK = 400;
+  try {
+    for (let i = 0; i < items.length; i += CHUNK) {
+      const batch = items.slice(i, i + CHUNK);
+      const mode = (i === 0) ? 'replace' : 'append';  // первый кусок очищает лист
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'saveproducts', mode, pin: APP_PIN, products: batch })
+      });
+      const sent = Math.min(i + CHUNK, items.length);
+      if (statusEl) {
+        statusEl.textContent = (baseMsg || '') + ` · отправка в облако ${sent}/${items.length}...`;
+        statusEl.className = 'importStatus';
+      }
+    }
+    if (statusEl) {
+      statusEl.textContent = (baseMsg || '') + ' · ✓ база сохранена в облаке';
+      statusEl.className = 'importStatus ok';
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = (baseMsg || '') + ' · ⚠ облако недоступно, сохранил локально';
+      statusEl.className = 'importStatus';
+    }
+  }
 }
 
 // Загрузить базу товаров из Google (JSONP)
